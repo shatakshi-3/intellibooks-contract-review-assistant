@@ -29,6 +29,7 @@ vi.mock("@/lib/db", () => ({
 import { requireAuth, requireContractOwnership } from "@/lib/auth/protect";
 import { start } from "workflow/api";
 import { db } from "@/lib/db";
+import { AppError } from "@/lib/errors";
 
 describe("Review API Route Handlers Integration Tests", () => {
   const userId = "usr_00000000-0000-0000-0000-000000000001";
@@ -140,6 +141,33 @@ describe("Review API Route Handlers Integration Tests", () => {
       expect(json.runId).toBe("run_conflict_888");
       expect(json.status).toBe("already_running");
     });
+
+    it("rejects cross-tenant review initiation with 404 Not Found when user does not own contract", async () => {
+      vi.mocked(requireAuth).mockResolvedValue({ userId: "usr_attacker_9999" } as any);
+      vi.mocked(requireContractOwnership).mockRejectedValue(
+        AppError.notFound("Contract not found")
+      );
+
+      const req = new Request(`http://localhost:3000/api/contracts/${contractId}/reviews`, {
+        method: "POST",
+      });
+
+      const res = await POST(req, { params: Promise.resolve({ id: contractId }) });
+      expect(res.status).toBe(404);
+      expect(start).not.toHaveBeenCalled();
+    });
+
+    it("rejects unauthenticated review initiation with 401 Unauthorized", async () => {
+      vi.mocked(requireAuth).mockRejectedValue(AppError.unauthorized());
+
+      const req = new Request(`http://localhost:3000/api/contracts/${contractId}/reviews`, {
+        method: "POST",
+      });
+
+      const res = await POST(req, { params: Promise.resolve({ id: contractId }) });
+      expect(res.status).toBe(401);
+      expect(start).not.toHaveBeenCalled();
+    });
   });
 
   describe("GET /api/contracts/[id]/reviews", () => {
@@ -198,16 +226,18 @@ describe("Review API Route Handlers Integration Tests", () => {
       expect(json.review.id).toBe(reviewId);
     });
 
-    it("rejects cross-tenant access when contract is not owned by user", async () => {
+    it("rejects cross-tenant access with 404 Not Found when contract is not owned by user", async () => {
       vi.mocked(requireAuth).mockResolvedValue({ userId } as any);
       vi.mocked(requireContractOwnership).mockRejectedValue(
-        new Error("Unauthorized or not found")
+        AppError.notFound("Contract not found")
       );
 
       const req = new Request(`http://localhost:3000/api/contracts/${contractId}/reviews`);
       const res = await listReviewsGET(req, { params: Promise.resolve({ id: contractId }) });
 
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(404);
+      const json = await res.json();
+      expect(json.code).toBe("NOT_FOUND");
     });
   });
 
@@ -247,6 +277,20 @@ describe("Review API Route Handlers Integration Tests", () => {
       const json = await res.json();
       expect(json.findings).toHaveLength(1);
       expect(json.findings[0].checklistItem).toBe("parties");
+    });
+
+    it("rejects cross-tenant access to findings with 404 Not Found", async () => {
+      vi.mocked(requireAuth).mockResolvedValue({ userId: "usr_attacker" } as any);
+      vi.mocked(requireContractOwnership).mockRejectedValue(
+        AppError.notFound("Contract not found")
+      );
+
+      const req = new Request(`http://localhost:3000/api/contracts/${contractId}/reviews/${reviewId}/findings`);
+      const res = await findingsGET(req, {
+        params: Promise.resolve({ id: contractId, reviewId }),
+      });
+
+      expect(res.status).toBe(404);
     });
   });
 });

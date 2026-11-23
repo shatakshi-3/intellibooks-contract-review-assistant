@@ -253,14 +253,24 @@ describe("Review Engine & Durable Workflow Integration Tests", () => {
       });
       vi.mocked(db.insert).mockReturnValue({ values: insertValues } as any);
 
-      // Mock EvidenceRetriever DB call inside step
-      vi.mocked(db.select).mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockResolvedValue([]),
+      // Mock review lookup (processing) and EvidenceRetriever DB call inside step
+      vi.mocked(db.select)
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([
+                { id: reviewId, overallStatus: "processing" },
+              ]),
+            }),
           }),
-        }),
-      } as any);
+        } as any)
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              orderBy: vi.fn().mockResolvedValue([]),
+            }),
+          }),
+        } as any);
 
       const result = await evaluateCategoryStep({
         reviewId,
@@ -276,21 +286,64 @@ describe("Review Engine & Durable Workflow Integration Tests", () => {
       expect(result.findingId).toBe("find_001");
     });
 
-    it("finalizes review with complete overallStatus when all categories are recorded", async () => {
+    it("rejects unauthorized user attempt to evaluate category inside workflow step", async () => {
+      // Mock review lookup returning empty (unauthorized)
+      vi.mocked(db.select).mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([]),
+          }),
+        }),
+      } as any);
+
+      await expect(
+        evaluateCategoryStep({
+          reviewId,
+          contractId,
+          userId: "usr_attacker_99999999",
+          contractVersionId: versionId,
+          fullExtractedText: completeContractText,
+          category: "parties",
+        })
+      ).rejects.toThrow("Unauthorized");
+    });
+
+    it("finalizes review with complete overallStatus when all 8 unique categories are recorded", async () => {
       const updateSet = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue({}) });
       vi.mocked(db.update).mockReturnValue({ set: updateSet } as any);
 
-      // Return 8 findings
-      const mockFindings = Array.from({ length: 8 }, (_, i) => ({
+      const all8Categories = [
+        "parties",
+        "start_date_and_term",
+        "payment_terms",
+        "termination",
+        "limitation_of_liability",
+        "confidentiality",
+        "governing_law",
+        "auto_renewal",
+      ];
+      const mockFindings = all8Categories.map((cat, i) => ({
         id: `f_${i}`,
-        status: "found",
+        checklistItem: cat,
       }));
 
-      vi.mocked(db.select).mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue(mockFindings),
-        }),
-      } as any);
+      vi.mocked(db.select)
+        // 1. review ownership check
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([
+                { id: reviewId, overallStatus: "processing" },
+              ]),
+            }),
+          }),
+        } as any)
+        // 2. findings lookup
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue(mockFindings),
+          }),
+        } as any);
 
       const result = await finalizeReviewStep({
         reviewId,
@@ -306,9 +359,87 @@ describe("Review Engine & Durable Workflow Integration Tests", () => {
       );
     });
 
-    it("records overallStatus = 'failed' on handleReviewErrorStep", async () => {
+    it("refuses to mark review complete if fewer than 8 unique categories are present", async () => {
+      // Only 7 categories present
+      const only7Categories = [
+        "parties",
+        "start_date_and_term",
+        "payment_terms",
+        "termination",
+        "limitation_of_liability",
+        "confidentiality",
+        "governing_law",
+      ];
+      const incompleteFindings = only7Categories.map((cat, i) => ({
+        id: `f_${i}`,
+        checklistItem: cat,
+      }));
+
+      vi.mocked(db.select)
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([
+                { id: reviewId, overallStatus: "processing" },
+              ]),
+            }),
+          }),
+        } as any)
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue(incompleteFindings),
+          }),
+        } as any);
+
+      await expect(
+        finalizeReviewStep({
+          reviewId,
+          contractId,
+          userId,
+          durationMs: 1500,
+        })
+      ).rejects.toThrow("Expected 8 unique category findings, but found 7/8");
+    });
+
+    it("prevents failed retries from damaging an already completed review", async () => {
       const updateSet = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue({}) });
       vi.mocked(db.update).mockReturnValue({ set: updateSet } as any);
+
+      // Review is ALREADY 'complete'
+      vi.mocked(db.select).mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([
+              { id: reviewId, overallStatus: "complete" },
+            ]),
+          }),
+        }),
+      } as any);
+
+      const result = await handleReviewErrorStep({
+        reviewId,
+        error: "Transient network failure on retry",
+      });
+
+      expect(result.recorded).toBe(true);
+      // DB update should NOT have been called because overallStatus was already complete!
+      expect(updateSet).not.toHaveBeenCalled();
+    });
+
+    it("records overallStatus = 'failed' if review was processing during error", async () => {
+      const updateSet = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue({}) });
+      vi.mocked(db.update).mockReturnValue({ set: updateSet } as any);
+
+      // Review was 'processing'
+      vi.mocked(db.select).mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([
+              { id: reviewId, overallStatus: "processing" },
+            ]),
+          }),
+        }),
+      } as any);
 
       const result = await handleReviewErrorStep({
         reviewId,

@@ -156,6 +156,32 @@ export async function evaluateCategoryStep(input: {
 
   const { reviewId, contractId, userId, contractVersionId, fullExtractedText, category } = input;
 
+  // Validate review ownership and state inside the workflow step
+  const [reviewRecord] = await db
+    .select({ id: reviews.id, overallStatus: reviews.overallStatus })
+    .from(reviews)
+    .where(
+      and(
+        eq(reviews.id, reviewId),
+        eq(reviews.contractId, contractId),
+        eq(reviews.userId, userId)
+      )
+    )
+    .limit(1);
+
+  if (!reviewRecord) {
+    throw new FatalError("Unauthorized: Review does not belong to specified contract and user");
+  }
+
+  // Idempotency guard: never overwrite findings on an already completed review
+  if (reviewRecord.overallStatus === "complete") {
+    return {
+      category,
+      status: "found",
+      findingId: "already_completed",
+    };
+  }
+
   // Retrieve evidence
   const evidence = await EvidenceRetriever.retrieveEvidenceForCategory({
     contractId,
@@ -247,31 +273,71 @@ export async function finalizeReviewStep(input: {
 }): Promise<{ success: boolean; overallStatus: "complete" | "partial" }> {
   "use step";
 
-  const { reviewId, durationMs } = input;
+  const { reviewId, contractId, userId, durationMs } = input;
+
+  // Validate review ownership inside workflow step
+  const [reviewRecord] = await db
+    .select({ id: reviews.id, overallStatus: reviews.overallStatus })
+    .from(reviews)
+    .where(
+      and(
+        eq(reviews.id, reviewId),
+        eq(reviews.contractId, contractId),
+        eq(reviews.userId, userId)
+      )
+    )
+    .limit(1);
+
+  if (!reviewRecord) {
+    throw new FatalError("Unauthorized: Review does not belong to specified contract and user");
+  }
+
+  if (reviewRecord.overallStatus === "complete") {
+    return { success: true, overallStatus: "complete" };
+  }
 
   const findings = await db
-    .select({ id: reviewFindings.id, status: reviewFindings.status })
+    .select({ id: reviewFindings.id, checklistItem: reviewFindings.checklistItem })
     .from(reviewFindings)
     .where(eq(reviewFindings.reviewId, reviewId));
 
-  const overallStatus = findings.length >= 8 ? "complete" : "partial";
+  // Ensure review cannot become complete unless all 8 unique checklist categories are present
+  const recordedCategories = new Set(findings.map((f) => f.checklistItem));
+  const all8Present = (
+    [
+      "parties",
+      "start_date_and_term",
+      "payment_terms",
+      "termination",
+      "limitation_of_liability",
+      "confidentiality",
+      "governing_law",
+      "auto_renewal",
+    ] as const
+  ).every((item) => recordedCategories.has(item));
+
+  if (!all8Present) {
+    throw new FatalError(
+      `Cannot complete review: Expected 8 unique category findings, but found ${recordedCategories.size}/8`
+    );
+  }
 
   await db
     .update(reviews)
     .set({
-      overallStatus,
+      overallStatus: "complete",
       durationMs,
     })
     .where(eq(reviews.id, reviewId));
 
   logger.info("Finalized contract review run", {
     reviewId,
-    overallStatus,
+    overallStatus: "complete",
     findingsCount: findings.length,
     durationMs,
   });
 
-  return { success: true, overallStatus };
+  return { success: true, overallStatus: "complete" };
 }
 
 /**
@@ -287,12 +353,22 @@ export async function handleReviewErrorStep(input: {
 
   logger.error("Contract review workflow failed", { reviewId, error });
 
-  await db
-    .update(reviews)
-    .set({
-      overallStatus: "failed",
-    })
-    .where(eq(reviews.id, reviewId));
+  // Only transition to failed if review is still in processing state;
+  // prevent failed retries from damaging an already completed review!
+  const [reviewRecord] = await db
+    .select({ id: reviews.id, overallStatus: reviews.overallStatus })
+    .from(reviews)
+    .where(eq(reviews.id, reviewId))
+    .limit(1);
+
+  if (reviewRecord && reviewRecord.overallStatus === "processing") {
+    await db
+      .update(reviews)
+      .set({
+        overallStatus: "failed",
+      })
+      .where(eq(reviews.id, reviewId));
+  }
 
   return { recorded: true };
 }

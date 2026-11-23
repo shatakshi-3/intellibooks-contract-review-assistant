@@ -145,16 +145,22 @@ export class EvidenceRetriever {
       }
     }
 
-    // 6. Compute coverage ratio
+    // 6. Compute Exhaustive Candidate Coverage
+    // Rather than an arbitrary percentage cutoff, absence (not_found) is only defensible if:
+    // a) 100% of the document was scanned for category keywords/synonyms and returned 0 matches, OR
+    // b) Every single chunk in the document containing candidate keywords was included in the examined context.
+    const allCandidateIndices = Array.from(matchedChunkIndices);
+    const unexaminedCandidateIndices = allCandidateIndices.filter(
+      (idx) => !selectedIndices.includes(idx)
+    );
+
     const examinedChunkCount = selectedIndices.length;
     const documentCoverageRatio =
       totalChunkCount > 0 ? examinedChunkCount / totalChunkCount : 0;
 
-    // A not_found status is only allowed if either:
-    // a) All document chunks were examined (100% coverage, typical for short/standard contracts <= 15 chunks)
-    // b) Or at least 65% of the document was examined and no matching clause was found
+    // Sufficient coverage for absence requires that no candidate text was left unexamined
     const hasSufficientCoverageForNotFound =
-      totalChunkCount <= 15 || documentCoverageRatio >= 0.65;
+      totalChunkCount <= 15 || unexaminedCandidateIndices.length === 0;
 
     return {
       category,
