@@ -1,0 +1,27 @@
+MASTER SERVICES AGREEMENT
+
+This Master Services Agreement ("Agreement") is entered into by and between Acme Corp ("Client") and ServicePro Inc. ("Provider").
+
+1. Term and Duration
+This Agreement shall commence on January 1, 2026 ("Effective Date") and shall continue in full force and effect for an initial term of two (2) years. Thereafter, this Agreement shall automatically renew for successive one (1) year periods unless either party provides written notice of non-renewal at least sixty (60) days prior to the expiration of the then-current term.
+
+2. Fees and Payment Terms
+Client shall pay Provider the professional services fees set forth in each applicable Statement of Work. All invoices are due and payable Net 30 days from the invoice date. Late payments shall accrue interest at a rate of 1.5% per month or the highest rate permitted by law.
+
+3. Confidentiality and Proprietary Information
+Each party agrees to hold the other party's Confidential Information in strict confidence. Receiving Party shall not disclose Disclosing Party's Confidential Information to any third party, except to employees and contractors who have a need to know and are bound by confidentiality obligations at least as restrictive as those contained herein.
+
+4. Intellectual Property Rights
+Provider retains all right, title, and interest in and to its pre-existing tools, algorithms, and methodologies. Upon receipt of full payment, Client shall own all right, title, and interest in and to the specific deliverables created uniquely for Client under each Statement of Work.
+
+5. Limitation of Liability
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, NEITHER PARTY SHALL BE LIABLE FOR ANY INDIRECT, INCIDENTAL, CONSEQUENTIAL, SPECIAL, OR PUNITIVE DAMAGES. IN NO EVENT SHALL EITHER PARTY'S AGGREGATE LIABILITY ARISING OUT OF OR RELATED TO THIS AGREEMENT EXCEED THE TOTAL FEES PAID OR PAYABLE BY CLIENT UNDER THIS AGREEMENT IN THE TWELVE (12) MONTHS PRECEDING THE CLAIM.
+
+6. Mutual Indemnification
+Provider shall defend, indemnify, and hold harmless Client from and against any third-party claims alleging that the Deliverables infringe any copyright, trademark, or trade secret. Client shall defend and indemnify Provider from and against any claims arising from materials or instructions provided by Client.
+
+7. Termination for Cause
+Either party may terminate this Agreement immediately upon written notice if the other party materially breaches any provision of this Agreement and fails to cure such breach within thirty (30) days after receiving written notice specifying the breach.
+
+8. Governing Law and Jurisdiction
+This Agreement shall be governed by and construed in accordance with the laws of the State of Delaware, without giving effect to any choice or conflict of law provision. The parties irrevocably submit to the exclusive jurisdiction of the state and federal courts located in Wilmington, Delaware.

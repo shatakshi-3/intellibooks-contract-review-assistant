@@ -1,0 +1,11 @@
+NON-DISCLOSURE AGREEMENT — UNICODE TEST
+
+1. Parties & Definitions
+This Non-Disclosure Agreement (“Agreement”) is executed between Alpha Tech Ltd. (represented by Dr. Müller) and Beta Solutions S.A.S. (represented by M. René François).
+
+2. Financial Terms: €50,000 & ¥5,000,000
+All penalties for unauthorized disclosure shall equal €50,000 (EUR) or ¥5,000,000 (JPY) per occurrence.
+Special provisions include non-breaking spaces (here is one) and mathematical symbols: ∀x ∈ Secrets, x is protected.
+
+3. Governing Law
+This Agreement is governed by the laws of Switzerland (Canton of Zürich).
