@@ -98,6 +98,15 @@ export const contracts = pgTable(
   ]
 );
 
+export type Contract = typeof contracts.$inferSelect;
+export type NewContract = typeof contracts.$inferInsert;
+export type User = typeof users.$inferSelect;
+export type ContractVersion = typeof contractVersions.$inferSelect;
+export type DocumentChunk = typeof documentChunks.$inferSelect;
+export type ProcessingJob = typeof processingJobs.$inferSelect;
+export type Review = typeof reviews.$inferSelect;
+export type ReviewFinding = typeof reviewFindings.$inferSelect;
+
 export const contractsRelations = relations(contracts, ({ one, many }) => ({
   user: one(users, {
     fields: [contracts.userId],
