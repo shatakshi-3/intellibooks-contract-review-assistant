@@ -33,18 +33,7 @@ export async function GET(
     await requireContractOwnership(contractId, userId);
 
     if (isDemoMode()) {
-      try {
-        const findings = await db
-          .select()
-          .from(reviewFindings)
-          .where(eq(reviewFindings.reviewId, reviewId));
-        if (findings.length > 0) {
-          return NextResponse.json({ reviewId, contractId, findings });
-        }
-      } catch {
-        // Fall back to demo fixtures
-      }
-      const { findings } = DemoService.getReview(contractId);
+      const { findings } = DemoService.getReview(contractId, userId);
       return NextResponse.json({
         reviewId,
         contractId,

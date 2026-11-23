@@ -176,16 +176,26 @@ export default function ContractDetailPage({ params }: ContractDetailPageProps) 
 
   if (errorMsg && !contract) {
     return (
-      <div className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-center">
-        <h3 className="text-base font-semibold text-rose-900">Error Loading Contract</h3>
-        <p className="text-sm text-rose-700 mt-1">{errorMsg}</p>
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-2 mt-4 text-sm font-medium text-indigo-600 hover:text-indigo-500"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Dashboard
-        </Link>
+      <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm max-w-xl mx-auto my-12">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 mb-4 border border-amber-200">
+          <ShieldAlert className="h-7 w-7" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-900">Contract Inaccessible (404 Not Found)</h3>
+        <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+          This document is protected by server-side row-level tenant isolation. It belongs to another organization and cannot be accessed by your current active identity.
+        </p>
+        <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500 font-mono text-left">
+          Status: 404 Not Found (Tenant ownership verified on server)
+        </div>
+        <div className="mt-6 flex items-center justify-center gap-3">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Return to My Dashboard
+          </Link>
+        </div>
       </div>
     );
   }
@@ -420,7 +430,7 @@ export default function ContractDetailPage({ params }: ContractDetailPageProps) 
                     </div>
 
                     {/* Verbatim Quote Box */}
-                    {finding?.status === "found" && finding.exactQuote && (
+                    {(finding?.status === "found" || finding?.status === "unclear") && finding?.exactQuote && (
                       <div className="mt-3.5 rounded-lg bg-slate-50 border border-slate-200 p-3">
                         <div className="flex items-center justify-between gap-2 mb-1.5">
                           <span className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">

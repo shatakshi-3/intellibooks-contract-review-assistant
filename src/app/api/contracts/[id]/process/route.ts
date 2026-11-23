@@ -5,14 +5,10 @@ import { AppError } from "@/lib/errors";
 import { start } from "workflow/api";
 import { HookConflictError } from "workflow/errors";
 import { contractProcessingWorkflow } from "@/modules/processing/workflows/contract-processing";
+import { isDemoMode } from "@/demo";
 
 /**
  * Trigger durable document processing workflow for a contract.
- *
- * Dispatches the processing workflow via the Vercel Workflow SDK:
- * - Returns 202 Accepted immediately with runId
- * - Uses experimental_hook idempotency token to prevent duplicate runs
- * - Zero long-running synchronous computation inside the Route Handler
  */
 export async function POST(
   _req: Request,
@@ -29,6 +25,18 @@ export async function POST(
 
     const contractId = parseResult.data.id;
     const contract = await requireContractOwnership(contractId, userId);
+
+    if (isDemoMode()) {
+      return NextResponse.json(
+        {
+          started: true,
+          status: "ready",
+          contractId,
+          message: "Contract processed and ready in demo mode",
+        },
+        { status: 200 }
+      );
+    }
 
     if (contract.status === "ready") {
       return NextResponse.json(

@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { upload } from "@vercel/blob/client";
 import { UploadCloud, FileText, X, AlertCircle, Loader2 } from "lucide-react";
 import { ALLOWED_EXTENSIONS, MAX_FILE_SIZE_BYTES } from "@/lib/validation/contracts";
+import { isDemoMode } from "@/demo/config";
 
 interface UploadDialogProps {
   isOpen: boolean;
@@ -107,6 +108,23 @@ export function UploadDialog({ isOpen, onClose, onUploadSuccess }: UploadDialogP
 
       const { contract } = await initRes.json();
       setProgress(20);
+      if (isDemoMode()) {
+        setProgress(50);
+        setStatusMessage("Extracting text and chunking document sections...");
+        await new Promise((r) => setTimeout(r, 400));
+        setProgress(85);
+        await fetch(`/api/contracts/${contract.id}/process`, { method: "POST" });
+        setProgress(100);
+        setStatusMessage("Contract uploaded and indexed successfully!");
+        setTimeout(() => {
+          setIsUploading(false);
+          setFile(null);
+          onUploadSuccess();
+          onClose();
+        }, 700);
+        return;
+      }
+
       setStatusMessage("Uploading directly to private Blob storage...");
 
       // Step 2: Upload directly from browser to Vercel Blob store

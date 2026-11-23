@@ -82,7 +82,7 @@ export type ListContractsInput = z.infer<typeof listContractsSchema>;
 
 // Schema for contract ID parameter
 export const contractIdSchema = z.object({
-  id: z.string().uuid("Invalid contract ID"),
+  id: z.string().min(1, "Invalid contract ID"),
 });
 
 /**

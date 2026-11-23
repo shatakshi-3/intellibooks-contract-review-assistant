@@ -3,6 +3,7 @@ import { requireAuth, requireContractOwnership } from "@/lib/auth/protect";
 import { chatSessionParamsSchema } from "@/lib/validation/chat";
 import { ChatService } from "@/modules/chat";
 import { AppError } from "@/lib/errors";
+import { isDemoMode, DemoService } from "@/demo";
 
 interface RouteProps {
   params: Promise<{ id: string; sessionId: string }>;
@@ -24,6 +25,15 @@ export async function GET(_req: Request, { params }: RouteProps) {
 
     const { id: contractId, sessionId } = parseResult.data;
     await requireContractOwnership(contractId, userId);
+
+    if (isDemoMode()) {
+      const messages = DemoService.listMessages(sessionId);
+      const session = DemoService.listSessions(contractId, userId).find((s) => s.id === sessionId);
+      if (!session) {
+        return NextResponse.json({ error: "Session not found" }, { status: 404 });
+      }
+      return NextResponse.json({ session, messages });
+    }
 
     const data = await ChatService.getSession(sessionId, contractId, userId);
     return NextResponse.json(data);
@@ -51,6 +61,14 @@ export async function DELETE(_req: Request, { params }: RouteProps) {
 
     const { id: contractId, sessionId } = parseResult.data;
     await requireContractOwnership(contractId, userId);
+
+    if (isDemoMode()) {
+      const deleted = DemoService.deleteSession(sessionId, userId);
+      if (!deleted) {
+        return NextResponse.json({ error: "Session not found" }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, message: "Session deleted" });
+    }
 
     const result = await ChatService.deleteSession(sessionId, contractId, userId);
     return NextResponse.json(result);

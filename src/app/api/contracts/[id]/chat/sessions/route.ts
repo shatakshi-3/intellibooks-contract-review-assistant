@@ -4,7 +4,7 @@ import { contractIdSchema } from "@/lib/validation/contracts";
 import { createSessionSchema } from "@/lib/validation/chat";
 import { ChatService } from "@/modules/chat";
 import { AppError } from "@/lib/errors";
-import { isDemoMode } from "@/demo";
+import { isDemoMode, DemoService } from "@/demo";
 
 interface RouteProps {
   params: Promise<{ id: string }>;
@@ -21,20 +21,6 @@ export async function GET(_req: Request, { params }: RouteProps) {
 
     const parseResult = contractIdSchema.safeParse(resolvedParams);
     if (!parseResult.success) {
-      if (isDemoMode()) {
-        return NextResponse.json({
-          sessions: [
-            {
-              id: "ses_demo_01",
-              contractId: resolvedParams.id,
-              userId,
-              title: "General Inquiries",
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            },
-          ],
-        });
-      }
       return NextResponse.json({ error: "Invalid contract ID" }, { status: 400 });
     }
 
@@ -42,23 +28,8 @@ export async function GET(_req: Request, { params }: RouteProps) {
     await requireContractOwnership(contractId, userId);
 
     if (isDemoMode()) {
-      try {
-        const sessions = await ChatService.listSessions(contractId, userId);
-        return NextResponse.json({ sessions });
-      } catch {
-        return NextResponse.json({
-          sessions: [
-            {
-              id: "ses_demo_01",
-              contractId,
-              userId,
-              title: "General Inquiries",
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            },
-          ],
-        });
-      }
+      const sessions = DemoService.listSessions(contractId, userId);
+      return NextResponse.json({ sessions });
     }
 
     const sessions = await ChatService.listSessions(contractId, userId);
@@ -73,30 +44,28 @@ export async function GET(_req: Request, { params }: RouteProps) {
 
 /**
  * POST /api/contracts/[id]/chat/sessions
- * Create a new chat session for this contract.
+ * Create a new empty chat session for this contract.
  */
 export async function POST(req: Request, { params }: RouteProps) {
   try {
     const { userId } = await requireAuth();
     const resolvedParams = await params;
 
-    const parseResult = contractIdSchema.safeParse(resolvedParams);
-    if (!parseResult.success) {
+    const parseParams = contractIdSchema.safeParse(resolvedParams);
+    if (!parseParams.success) {
       return NextResponse.json({ error: "Invalid contract ID" }, { status: 400 });
     }
 
-    const contractId = parseResult.data.id;
+    const contractId = parseParams.data.id;
     await requireContractOwnership(contractId, userId);
 
-    let title: string | undefined;
-    try {
-      const body = await req.json();
-      const parsedBody = createSessionSchema.safeParse(body);
-      if (parsedBody.success) {
-        title = parsedBody.data.title;
-      }
-    } catch {
-      // Body is optional
+    const body = await req.json().catch(() => ({}));
+    const parseBody = createSessionSchema.safeParse(body);
+    const title = parseBody.success ? parseBody.data.title : undefined;
+
+    if (isDemoMode()) {
+      const session = DemoService.createSession(contractId, userId, title);
+      return NextResponse.json({ session }, { status: 201 });
     }
 
     const session = await ChatService.createSession({

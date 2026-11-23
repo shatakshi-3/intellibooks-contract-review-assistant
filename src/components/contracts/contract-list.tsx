@@ -1,8 +1,10 @@
 "use client";
 
 import { ContractCard } from "./contract-card";
-import { FileText, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { FileText, ChevronLeft, ChevronRight, Loader2, ShieldCheck, Users } from "lucide-react";
 import type { Contract } from "@/lib/db/schema";
+import { isDemoMode } from "@/demo/config";
+import { useDemoAuth } from "@/demo/auth";
 
 interface ContractListProps {
   contracts: Contract[];
@@ -34,25 +36,36 @@ export function ContractList({
     );
   }
 
+  const demoActive = isDemoMode();
+  const { user } = useDemoAuth();
+
   if (contracts.length === 0) {
     return (
-      <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white p-12 text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-          <FileText className="h-6 w-6" />
+      <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white p-12 text-center shadow-sm">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 mb-2 border border-indigo-100">
+          {demoActive && user.id !== "usr_00000000-0000-0000-0000-000000000001" ? (
+            <Users className="h-7 w-7 text-indigo-600" />
+          ) : (
+            <FileText className="h-7 w-7 text-indigo-600" />
+          )}
         </div>
-        <h3 className="mt-4 text-base font-semibold text-slate-900">
-          No contracts uploaded yet
+        <h3 className="mt-4 text-base font-bold text-slate-900">
+          {demoActive && user.id !== "usr_00000000-0000-0000-0000-000000000001"
+            ? "Tenant B Workspace (Zero Contracts Visible)"
+            : "No contracts uploaded yet"}
         </h3>
-        <p className="mt-1 text-sm text-slate-500 max-w-sm mx-auto">
-          Upload PDF, DOCX, or TXT agreements (up to 20 MB) to inspect verified clauses and automated compliance findings.
+        <p className="mt-1 text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+          {demoActive && user.id !== "usr_00000000-0000-0000-0000-000000000001"
+            ? "Server-side tenant isolation verified: Sarah Chen (Tenant B) cannot access Tenant A's Master Services Agreement. Upload an agreement below or use the top banner to switch back to Tenant A."
+            : "Upload PDF, DOCX, or TXT agreements (up to 20 MB) to inspect verified clauses and automated compliance findings."}
         </p>
-        <div className="mt-6">
+        <div className="mt-6 flex items-center justify-center gap-3">
           <button
             type="button"
             onClick={onUploadClick}
             className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition"
           >
-            Upload First Contract
+            Upload Contract
           </button>
         </div>
       </div>

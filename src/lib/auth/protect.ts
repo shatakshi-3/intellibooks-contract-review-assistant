@@ -5,28 +5,46 @@
  * on every protected resource access.
  *
  * Key security rules:
- * - userId is ALWAYS derived from the verified Clerk session
+ * - userId is ALWAYS derived from the verified Clerk session (or active demo tenant in demo mode)
  * - NEVER trust userId from request body, params, or headers
  * - Ownership check returns 404 (not 403) to avoid leaking resource existence
  */
 
 import { auth } from "@clerk/nextjs/server";
+import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { users, contracts } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { AppError } from "@/lib/errors";
-import { isDemoMode, DEMO_USER, DemoService } from "@/demo";
+import { isDemoMode, DEMO_USER_1, DEMO_USER_2, DemoService } from "@/demo";
 
 /**
- * Verify the Clerk session and return the internal user record.
+ * Resolves the currently active demo tenant from the session cookie.
+ */
+export async function getActiveDemoUser() {
+  try {
+    const cookieStore = await cookies();
+    const demoCookie = cookieStore.get("demo_user_id")?.value;
+    if (demoCookie === DEMO_USER_2.id) {
+      return DEMO_USER_2;
+    }
+  } catch {
+    // If called outside of request context, fall back to User 1
+  }
+  return DEMO_USER_1;
+}
+
+/**
+ * Verify the session and return the internal user record.
  * Throws 401 if not authenticated.
  */
 export async function requireAuth(): Promise<{
-  userId: string;    // Internal UUID
-  clerkId: string;   // Clerk's user ID
+  userId: string; // Internal UUID
+  clerkId: string; // Clerk's user ID
 }> {
   if (isDemoMode()) {
-    return { userId: DEMO_USER.id, clerkId: DEMO_USER.clerkId };
+    const activeUser = await getActiveDemoUser();
+    return { userId: activeUser.id, clerkId: activeUser.clerkId };
   }
 
   const { userId: clerkId } = await auth();
@@ -63,6 +81,15 @@ export async function requireContractOwnership(
   contractId: string,
   userId: string
 ) {
+  if (isDemoMode()) {
+    const demoContract = DemoService.getContractById(contractId, userId);
+    if (demoContract) {
+      return demoContract;
+    }
+    // Real server-side isolation: returns 404 if belongs to another user
+    throw AppError.notFound("Contract not found");
+  }
+
   try {
     const contract = await db
       .select()
@@ -74,14 +101,7 @@ export async function requireContractOwnership(
       return contract[0];
     }
   } catch (error) {
-    if (!isDemoMode()) throw error;
-  }
-
-  if (isDemoMode()) {
-    const demoContract = DemoService.getContractById(contractId);
-    if (demoContract) {
-      return demoContract;
-    }
+    throw error;
   }
 
   throw AppError.notFound("Contract not found");
@@ -96,6 +116,10 @@ export async function requireRole(
   requiredRole: string
 ): Promise<void> {
   if (isDemoMode()) {
+    const activeUser = await getActiveDemoUser();
+    if (requiredRole === "admin" && activeUser.role !== "admin") {
+      throw AppError.forbidden("Admin role required to view evaluation dashboard");
+    }
     return;
   }
 
@@ -105,7 +129,15 @@ export async function requireRole(
     .where(eq(users.id, userId))
     .limit(1);
 
-  if (user.length === 0 || user[0].role !== requiredRole) {
-    throw AppError.forbidden("Insufficient permissions");
+  if (user.length === 0) {
+    throw AppError.forbidden("User not found");
   }
+
+  if (user[0].role !== requiredRole && user[0].role !== "admin") {
+    throw AppError.forbidden(`Role '${requiredRole}' required`);
+  }
+}
+
+export function isAdmin(role: string | null | undefined): boolean {
+  return role === "admin";
 }

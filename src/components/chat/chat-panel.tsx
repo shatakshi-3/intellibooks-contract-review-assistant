@@ -446,10 +446,10 @@ export function ChatPanel({ contractId, contractTitle }: ChatPanelProps) {
               </p>
               <div className="flex flex-wrap gap-2 justify-center max-w-md">
                 {[
+                  "What is the governing law and notice period for termination?",
+                  "What penalties apply if provider fails to deliver physical hardware or space equipment?",
                   "What are the payment terms and late fees?",
-                  "How can either party terminate this agreement?",
-                  "Is there an automatic renewal clause?",
-                  "What is the cap on limitation of liability?",
+                  "What is the aggregate limitation of liability cap?",
                 ].map((sampleQ, i) => (
                   <button
                     key={i}

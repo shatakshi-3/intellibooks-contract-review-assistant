@@ -13,7 +13,7 @@ import { isDemoMode, DemoService } from "@/demo";
 
 /**
  * POST /api/contracts/[id]/reviews
- * Initiates an automated contract review run using the Vercel Workflow SDK.
+ * Initiates an automated contract review run using the Vercel Workflow SDK (or DemoService in Demo Mode).
  */
 export async function POST(
   _req: Request,
@@ -21,6 +21,30 @@ export async function POST(
 ) {
   try {
     const { userId } = await requireAuth();
+    const resolvedParams = await params;
+
+    const parseResult = contractIdSchema.safeParse(resolvedParams);
+    if (!parseResult.success) {
+      return NextResponse.json({ error: "Invalid contract ID" }, { status: 400 });
+    }
+
+    const contractId = parseResult.data.id;
+    const contract = await requireContractOwnership(contractId, userId);
+
+    if (isDemoMode()) {
+      const { review } = DemoService.triggerReview(contractId, userId);
+      return NextResponse.json(
+        {
+          started: true,
+          runId: `run_${Date.now()}`,
+          status: "complete",
+          contractId,
+          versionId: "ver_demo_01",
+          reviewId: review.id,
+        },
+        { status: 200 }
+      );
+    }
 
     const rateLimit = checkRateLimit(userId, "review");
     if (rateLimit.limited) {
@@ -32,15 +56,6 @@ export async function POST(
         { status: 429 }
       );
     }
-    const resolvedParams = await params;
-
-    const parseResult = contractIdSchema.safeParse(resolvedParams);
-    if (!parseResult.success) {
-      return NextResponse.json({ error: "Invalid contract ID" }, { status: 400 });
-    }
-
-    const contractId = parseResult.data.id;
-    const contract = await requireContractOwnership(contractId, userId);
 
     if (contract.status !== "ready") {
       return NextResponse.json(
@@ -129,17 +144,6 @@ export async function GET(
 ) {
   try {
     const { userId } = await requireAuth();
-
-    const rateLimit = checkRateLimit(userId, "review");
-    if (rateLimit.limited) {
-      return NextResponse.json(
-        {
-          error: "Review rate limit exceeded. Please wait shortly before triggering another review.",
-          code: "RATE_LIMITED",
-        },
-        { status: 429 }
-      );
-    }
     const resolvedParams = await params;
 
     const parseResult = contractIdSchema.safeParse(resolvedParams);
@@ -151,20 +155,19 @@ export async function GET(
     await requireContractOwnership(contractId, userId);
 
     if (isDemoMode()) {
-      try {
-        const reviewList = await db
-          .select()
-          .from(reviews)
-          .where(eq(reviews.contractId, contractId))
-          .orderBy(desc(reviews.createdAt));
-        if (reviewList.length > 0) {
-          return NextResponse.json({ reviews: reviewList });
-        }
-      } catch {
-        // Fall back to demo fixtures
-      }
-      const { review } = DemoService.getReview(contractId);
+      const { review } = DemoService.getReview(contractId, userId);
       return NextResponse.json({ reviews: review ? [review] : [] });
+    }
+
+    const rateLimit = checkRateLimit(userId, "review");
+    if (rateLimit.limited) {
+      return NextResponse.json(
+        {
+          error: "Review rate limit exceeded. Please wait shortly before triggering another review.",
+          code: "RATE_LIMITED",
+        },
+        { status: 429 }
+      );
     }
 
     const reviewList = await db

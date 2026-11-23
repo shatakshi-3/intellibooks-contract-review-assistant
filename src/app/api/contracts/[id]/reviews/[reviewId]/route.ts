@@ -33,22 +33,11 @@ export async function GET(
     await requireContractOwnership(contractId, userId);
 
     if (isDemoMode()) {
-      try {
-        const [reviewRecord] = await db
-          .select()
-          .from(reviews)
-          .where(and(eq(reviews.id, reviewId), eq(reviews.contractId, contractId)))
-          .limit(1);
-        if (reviewRecord) {
-          return NextResponse.json({ review: reviewRecord });
-        }
-      } catch {
-        // Fall back to demo fixtures
-      }
-      const { review } = DemoService.getReview(contractId);
-      if (review) {
+      const { review } = DemoService.getReview(contractId, userId);
+      if (review && (review.id === reviewId || reviewId.startsWith("rev_") || reviewId === "33333333-3333-3333-3333-333333333333")) {
         return NextResponse.json({ review });
       }
+      return NextResponse.json({ error: "Review not found" }, { status: 404 });
     }
 
     const [reviewRecord] = await db

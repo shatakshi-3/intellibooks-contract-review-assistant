@@ -18,6 +18,16 @@ export async function POST(req: Request) {
       );
     }
 
+    if (isDemoMode()) {
+      const contract = DemoService.addContract({
+        userId,
+        filename: parseResult.data.filename,
+        fileType: parseResult.data.fileType,
+        fileSizeBytes: parseResult.data.fileSize,
+      });
+      return NextResponse.json({ contract }, { status: 201 });
+    }
+
     const contract = await ContractsService.createPendingContract({
       userId,
       ...parseResult.data,
@@ -57,22 +67,15 @@ export async function GET(req: Request) {
     }
 
     if (isDemoMode()) {
-      try {
-        const result = await ContractsService.listContracts(userId, parseResult.data);
-        if (result.data && result.data.length > 0) {
-          return NextResponse.json(result);
-        }
-      } catch {
-        // Fall back to demo fixtures
-      }
-      const demoContracts = DemoService.getContracts();
+      // Strictly scoped to authenticated user in Demo Mode
+      const demoContracts = DemoService.getContracts(userId);
       return NextResponse.json({
         data: demoContracts,
         pagination: {
           page: 1,
           limit: 20,
           total: demoContracts.length,
-          totalPages: 1,
+          totalPages: Math.max(1, Math.ceil(demoContracts.length / 20)),
         },
       });
     }

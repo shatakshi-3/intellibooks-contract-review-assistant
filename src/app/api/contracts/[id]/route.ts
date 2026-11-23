@@ -16,25 +16,22 @@ export async function GET(
     const parseResult = contractIdSchema.safeParse(resolvedParams);
     if (!parseResult.success) {
       if (isDemoMode()) {
-        const demoContract = DemoService.getContractById(resolvedParams.id);
+        const demoContract = DemoService.getContractById(resolvedParams.id, userId);
         if (demoContract) {
           return NextResponse.json({ contract: demoContract });
         }
+        return NextResponse.json({ error: "Contract not found" }, { status: 404 });
       }
       return NextResponse.json({ error: "Invalid contract ID" }, { status: 400 });
     }
 
     if (isDemoMode()) {
-      try {
-        const contract = await ContractsService.getContractById(parseResult.data.id, userId);
-        if (contract) return NextResponse.json({ contract });
-      } catch {
-        // Fall back to demo fixtures
-      }
-      const demoContract = DemoService.getContractById(parseResult.data.id);
+      const demoContract = DemoService.getContractById(parseResult.data.id, userId);
       if (demoContract) {
         return NextResponse.json({ contract: demoContract });
       }
+      // Strict multi-tenant isolation: 404 if belongs to another user or does not exist
+      return NextResponse.json({ error: "Contract not found" }, { status: 404 });
     }
 
     const contract = await ContractsService.getContractById(parseResult.data.id, userId);
@@ -61,6 +58,14 @@ export async function DELETE(
     const parseResult = contractIdSchema.safeParse(resolvedParams);
     if (!parseResult.success) {
       return NextResponse.json({ error: "Invalid contract ID" }, { status: 400 });
+    }
+
+    if (isDemoMode()) {
+      const deleted = DemoService.deleteContract(parseResult.data.id, userId);
+      if (!deleted) {
+        return NextResponse.json({ error: "Contract not found" }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, message: "Contract deleted successfully" });
     }
 
     const result = await ContractsService.deleteContract(parseResult.data.id, userId);

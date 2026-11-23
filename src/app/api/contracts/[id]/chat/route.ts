@@ -5,6 +5,7 @@ import { contractIdSchema } from "@/lib/validation/contracts";
 import { quickChatSchema } from "@/lib/validation/chat";
 import { ChatService } from "@/modules/chat";
 import { AppError } from "@/lib/errors";
+import { isDemoMode, DemoService } from "@/demo";
 
 interface RouteProps {
   params: Promise<{ id: string }>;
@@ -18,17 +19,6 @@ interface RouteProps {
 export async function POST(req: Request, { params }: RouteProps) {
   try {
     const { userId } = await requireAuth();
-
-    const rateLimit = checkRateLimit(userId, "chat");
-    if (rateLimit.limited) {
-      return NextResponse.json(
-        {
-          error: "Chat rate limit exceeded. Please wait a moment before sending another message.",
-          code: "RATE_LIMITED",
-        },
-        { status: 429 }
-      );
-    }
     const resolvedParams = await params;
 
     const parseParams = contractIdSchema.safeParse(resolvedParams);
@@ -45,6 +35,46 @@ export async function POST(req: Request, { params }: RouteProps) {
       return NextResponse.json(
         { error: parseBody.error.issues[0]?.message || "Invalid message format" },
         { status: 400 }
+      );
+    }
+
+    if (isDemoMode()) {
+      let sessionId = parseBody.data.sessionId;
+      if (!sessionId) {
+        const existingSessions = DemoService.listSessions(contractId, userId);
+        if (existingSessions.length > 0) {
+          sessionId = existingSessions[0].id;
+        } else {
+          const newSession = DemoService.createSession(contractId, userId, parseBody.data.message.slice(0, 40));
+          sessionId = newSession.id;
+        }
+      }
+
+      const { stream } = await DemoService.sendMessageStream({
+        sessionId,
+        contractId,
+        userId,
+        message: parseBody.data.message,
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+          "X-Accel-Buffering": "no",
+        },
+      });
+    }
+
+    const rateLimit = checkRateLimit(userId, "chat");
+    if (rateLimit.limited) {
+      return NextResponse.json(
+        {
+          error: "Chat rate limit exceeded. Please wait a moment before sending another message.",
+          code: "RATE_LIMITED",
+        },
+        { status: 429 }
       );
     }
 
