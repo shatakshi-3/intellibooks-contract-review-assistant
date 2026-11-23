@@ -8,6 +8,13 @@
       "when": 1795445999112,
       "tag": "0000_wet_wildside",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795453721794,
+      "tag": "0001_parallel_ezekiel",
+      "breakpoints": true
     }
   ]
 }

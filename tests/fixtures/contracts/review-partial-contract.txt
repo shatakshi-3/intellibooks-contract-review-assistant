@@ -1,0 +1,16 @@
+SHORT CONSULTING STATEMENT OF WORK
+
+1. PARTIES
+This Statement of Work is between Beta Retail Corp ("Client") and Delta Dev Inc ("Developer").
+
+2. START DATE AND DURATION
+The engagement starts on April 1, 2025 and runs for six (6) months.
+
+3. FEES AND COMPENSATION
+Developer will be compensated at a flat rate of $15,000 payable upon deliverable milestones.
+
+4. EARLY ENDING
+Either party may cancel the project with 14 days advance email notice.
+
+5. NON-DISCLOSURE
+Developer will keep all customer lists and source code private.

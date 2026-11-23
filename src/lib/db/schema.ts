@@ -294,13 +294,16 @@ export const reviews = pgTable(
     contractId: uuid("contract_id")
       .notNull()
       .references(() => contracts.id, { onDelete: "cascade" }),
+    contractVersionId: uuid("contract_version_id")
+      .references(() => contractVersions.id, { onDelete: "cascade" }),
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     modelId: text("model_id").notNull(), // e.g. 'google/gemini-2.5-flash'
     promptVersion: text("prompt_version").notNull(), // e.g. 'v1'
     embeddingModel: text("embedding_model"), // model used for retrieval
-    overallStatus: text("overall_status").notNull(), // 'complete' | 'partial' | 'failed'
+    overallStatus: text("overall_status").notNull(), // 'processing' | 'complete' | 'partial' | 'failed'
+    contentHash: text("content_hash"),
     rawLlmResponse: jsonb("raw_llm_response"),
     durationMs: integer("duration_ms"),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -310,6 +313,7 @@ export const reviews = pgTable(
   (table) => [
     index("idx_reviews_contract").on(table.contractId),
     index("idx_reviews_user").on(table.userId),
+    index("idx_reviews_version").on(table.contractVersionId),
     index("idx_reviews_created_at").on(table.createdAt),
   ]
 );
@@ -369,16 +373,29 @@ export const reviewFindings = pgTable(
     reviewId: uuid("review_id")
       .notNull()
       .references(() => reviews.id, { onDelete: "cascade" }),
+    contractVersionId: uuid("contract_version_id")
+      .references(() => contractVersions.id, { onDelete: "cascade" }),
     checklistItem: text("checklist_item").notNull(), // ChecklistItem
     status: text("status").notNull(), // FindingStatus
     summary: text("summary"), // One-line plain-English summary
     explanation: text("explanation"),
+    reasoning: text("reasoning"),
     exactQuote: text("exact_quote"),
     pageNumber: integer("page_number"),
     sectionReference: text("section_reference"),
+    startCharOffset: integer("start_char_offset"),
+    endCharOffset: integer("end_char_offset"),
+    locationData: jsonb("location_data").$type<{
+      pageNumber?: number;
+      sectionHeading?: string;
+      startCharOffset?: number;
+      endCharOffset?: number;
+      paragraph?: number;
+    }>(),
     quoteVerified: boolean("quote_verified"),
     verificationMethod: text("verification_method"), // 'exact_match' | 'normalized_match' | 'verification_failed'
     confidenceScore: real("confidence_score"),
+    confidenceLabel: text("confidence_label"), // 'high' | 'medium' | 'low'
     rawEvidence: jsonb("raw_evidence").$type<{
       retrievedChunks?: Array<{
         chunkId: string;
@@ -387,6 +404,9 @@ export const reviewFindings = pgTable(
         pageNumber?: number;
         sectionTitle?: string;
       }>;
+      examinedChunkCount?: number;
+      totalChunkCount?: number;
+      documentCoverageRatio?: number;
     }>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -395,6 +415,7 @@ export const reviewFindings = pgTable(
   (table) => [
     index("idx_findings_review").on(table.reviewId),
     index("idx_findings_checklist").on(table.checklistItem),
+    index("idx_findings_version").on(table.contractVersionId),
   ]
 );
 
