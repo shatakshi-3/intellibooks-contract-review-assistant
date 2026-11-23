@@ -9,6 +9,7 @@ import { contractReviewWorkflow } from "@/modules/reviews/workflows/review-workf
 import { db } from "@/lib/db";
 import { reviews, contractVersions } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { isDemoMode, DemoService } from "@/demo";
 
 /**
  * POST /api/contracts/[id]/reviews
@@ -148,6 +149,23 @@ export async function GET(
 
     const contractId = parseResult.data.id;
     await requireContractOwnership(contractId, userId);
+
+    if (isDemoMode()) {
+      try {
+        const reviewList = await db
+          .select()
+          .from(reviews)
+          .where(eq(reviews.contractId, contractId))
+          .orderBy(desc(reviews.createdAt));
+        if (reviewList.length > 0) {
+          return NextResponse.json({ reviews: reviewList });
+        }
+      } catch {
+        // Fall back to demo fixtures
+      }
+      const { review } = DemoService.getReview(contractId);
+      return NextResponse.json({ reviews: review ? [review] : [] });
+    }
 
     const reviewList = await db
       .select()

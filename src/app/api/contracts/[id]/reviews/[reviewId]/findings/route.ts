@@ -5,10 +5,11 @@ import { db } from "@/lib/db";
 import { reviews, reviewFindings } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { isDemoMode, DemoService } from "@/demo";
 
 const paramsSchema = z.object({
-  id: z.string().uuid("Invalid contract ID"),
-  reviewId: z.string().uuid("Invalid review ID"),
+  id: z.string(),
+  reviewId: z.string(),
 });
 
 /**
@@ -30,6 +31,26 @@ export async function GET(
 
     const { id: contractId, reviewId } = parseResult.data;
     await requireContractOwnership(contractId, userId);
+
+    if (isDemoMode()) {
+      try {
+        const findings = await db
+          .select()
+          .from(reviewFindings)
+          .where(eq(reviewFindings.reviewId, reviewId));
+        if (findings.length > 0) {
+          return NextResponse.json({ reviewId, contractId, findings });
+        }
+      } catch {
+        // Fall back to demo fixtures
+      }
+      const { findings } = DemoService.getReview(contractId);
+      return NextResponse.json({
+        reviewId,
+        contractId,
+        findings,
+      });
+    }
 
     // Verify review belongs to this contract
     const [reviewRecord] = await db

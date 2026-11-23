@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/protect";
 import { ContractsService } from "@/modules/contracts";
 import { contractIdSchema } from "@/lib/validation/contracts";
 import { AppError } from "@/lib/errors";
+import { isDemoMode, DemoService } from "@/demo";
 
 export async function GET(
   _req: Request,
@@ -14,7 +15,26 @@ export async function GET(
 
     const parseResult = contractIdSchema.safeParse(resolvedParams);
     if (!parseResult.success) {
+      if (isDemoMode()) {
+        const demoContract = DemoService.getContractById(resolvedParams.id);
+        if (demoContract) {
+          return NextResponse.json({ contract: demoContract });
+        }
+      }
       return NextResponse.json({ error: "Invalid contract ID" }, { status: 400 });
+    }
+
+    if (isDemoMode()) {
+      try {
+        const contract = await ContractsService.getContractById(parseResult.data.id, userId);
+        if (contract) return NextResponse.json({ contract });
+      } catch {
+        // Fall back to demo fixtures
+      }
+      const demoContract = DemoService.getContractById(parseResult.data.id);
+      if (demoContract) {
+        return NextResponse.json({ contract: demoContract });
+      }
     }
 
     const contract = await ContractsService.getContractById(parseResult.data.id, userId);

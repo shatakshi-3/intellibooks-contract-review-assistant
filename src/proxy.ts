@@ -1,4 +1,6 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
+import { isDemoMode } from "@/demo/config";
 
 // Define public routes that do not require authentication
 const isPublicRoute = createRouteMatcher([
@@ -7,7 +9,14 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/api/webhooks(.*)",
   "/.well-known/workflow(.*)",
+  "/api/demo(.*)",
 ]);
+
+const defaultClerkHandler = clerkMiddleware(async (auth, req) => {
+  if (!isPublicRoute(req)) {
+    await auth.protect();
+  }
+});
 
 /**
  * Next.js 16 Proxy convention for edge routing and Clerk session validation.
@@ -16,11 +25,12 @@ const isPublicRoute = createRouteMatcher([
  * server-side authentication (requireAuth) and resource authorization (requireContractOwnership)
  * inside Route Handlers and Server Actions.
  */
-export const proxy = clerkMiddleware(async (auth, req) => {
-  if (!isPublicRoute(req)) {
-    await auth.protect();
+export const proxy: typeof defaultClerkHandler = (req, event) => {
+  if (isDemoMode()) {
+    return NextResponse.next();
   }
-});
+  return defaultClerkHandler(req, event);
+};
 
 export default proxy;
 

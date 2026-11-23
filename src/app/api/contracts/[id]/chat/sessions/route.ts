@@ -4,6 +4,7 @@ import { contractIdSchema } from "@/lib/validation/contracts";
 import { createSessionSchema } from "@/lib/validation/chat";
 import { ChatService } from "@/modules/chat";
 import { AppError } from "@/lib/errors";
+import { isDemoMode } from "@/demo";
 
 interface RouteProps {
   params: Promise<{ id: string }>;
@@ -20,11 +21,45 @@ export async function GET(_req: Request, { params }: RouteProps) {
 
     const parseResult = contractIdSchema.safeParse(resolvedParams);
     if (!parseResult.success) {
+      if (isDemoMode()) {
+        return NextResponse.json({
+          sessions: [
+            {
+              id: "ses_demo_01",
+              contractId: resolvedParams.id,
+              userId,
+              title: "General Inquiries",
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+          ],
+        });
+      }
       return NextResponse.json({ error: "Invalid contract ID" }, { status: 400 });
     }
 
     const contractId = parseResult.data.id;
     await requireContractOwnership(contractId, userId);
+
+    if (isDemoMode()) {
+      try {
+        const sessions = await ChatService.listSessions(contractId, userId);
+        return NextResponse.json({ sessions });
+      } catch {
+        return NextResponse.json({
+          sessions: [
+            {
+              id: "ses_demo_01",
+              contractId,
+              userId,
+              title: "General Inquiries",
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+          ],
+        });
+      }
+    }
 
     const sessions = await ChatService.listSessions(contractId, userId);
     return NextResponse.json({ sessions });

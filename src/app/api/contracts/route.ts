@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/protect";
 import { ContractsService } from "@/modules/contracts";
 import { createContractSchema, listContractsSchema } from "@/lib/validation/contracts";
 import { AppError } from "@/lib/errors";
+import { isDemoMode, DemoService } from "@/demo";
 
 export async function POST(req: Request) {
   try {
@@ -53,6 +54,27 @@ export async function GET(req: Request) {
         { error: "Invalid query parameters", details: parseResult.error.format() },
         { status: 400 }
       );
+    }
+
+    if (isDemoMode()) {
+      try {
+        const result = await ContractsService.listContracts(userId, parseResult.data);
+        if (result.data && result.data.length > 0) {
+          return NextResponse.json(result);
+        }
+      } catch {
+        // Fall back to demo fixtures
+      }
+      const demoContracts = DemoService.getContracts();
+      return NextResponse.json({
+        data: demoContracts,
+        pagination: {
+          page: 1,
+          limit: 20,
+          total: demoContracts.length,
+          totalPages: 1,
+        },
+      });
     }
 
     const result = await ContractsService.listContracts(userId, parseResult.data);

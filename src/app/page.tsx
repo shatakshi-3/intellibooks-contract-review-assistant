@@ -1,9 +1,22 @@
 import Link from "next/link";
 import { ShieldCheck, ArrowRight, FileCheck2, Search, Cpu } from "lucide-react";
 import { auth } from "@clerk/nextjs/server";
+import { isDemoMode } from "@/demo/config";
 
 export default async function HomePage() {
-  const { userId } = await auth();
+  const demoActive = isDemoMode();
+  let userId: string | null = null;
+
+  if (demoActive) {
+    userId = "demo_user";
+  } else {
+    try {
+      const authResult = await auth();
+      userId = authResult.userId;
+    } catch {
+      userId = null;
+    }
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-900 text-slate-100">

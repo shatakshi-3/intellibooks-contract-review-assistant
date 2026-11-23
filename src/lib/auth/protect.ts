@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import { users, contracts } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { AppError } from "@/lib/errors";
+import { isDemoMode, DEMO_USER, DemoService } from "@/demo";
 
 /**
  * Verify the Clerk session and return the internal user record.
@@ -24,6 +25,10 @@ export async function requireAuth(): Promise<{
   userId: string;    // Internal UUID
   clerkId: string;   // Clerk's user ID
 }> {
+  if (isDemoMode()) {
+    return { userId: DEMO_USER.id, clerkId: DEMO_USER.clerkId };
+  }
+
   const { userId: clerkId } = await auth();
 
   if (!clerkId) {
@@ -58,17 +63,28 @@ export async function requireContractOwnership(
   contractId: string,
   userId: string
 ) {
-  const contract = await db
-    .select()
-    .from(contracts)
-    .where(and(eq(contracts.id, contractId), eq(contracts.userId, userId)))
-    .limit(1);
+  try {
+    const contract = await db
+      .select()
+      .from(contracts)
+      .where(and(eq(contracts.id, contractId), eq(contracts.userId, userId)))
+      .limit(1);
 
-  if (contract.length === 0) {
-    throw AppError.notFound("Contract not found");
+    if (contract.length > 0) {
+      return contract[0];
+    }
+  } catch (error) {
+    if (!isDemoMode()) throw error;
   }
 
-  return contract[0];
+  if (isDemoMode()) {
+    const demoContract = DemoService.getContractById(contractId);
+    if (demoContract) {
+      return demoContract;
+    }
+  }
+
+  throw AppError.notFound("Contract not found");
 }
 
 /**
@@ -79,6 +95,10 @@ export async function requireRole(
   userId: string,
   requiredRole: string
 ): Promise<void> {
+  if (isDemoMode()) {
+    return;
+  }
+
   const user = await db
     .select({ role: users.role })
     .from(users)
