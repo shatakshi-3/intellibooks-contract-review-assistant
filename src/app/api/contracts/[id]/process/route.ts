@@ -1,9 +1,19 @@
 import { NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth/protect";
-import { DocumentProcessingPipeline } from "@/modules/processing";
+import { requireAuth, requireContractOwnership } from "@/lib/auth/protect";
 import { contractIdSchema } from "@/lib/validation/contracts";
 import { AppError } from "@/lib/errors";
+import { start } from "workflow/api";
+import { HookConflictError } from "workflow/errors";
+import { contractProcessingWorkflow } from "@/modules/processing/workflows/contract-processing";
 
+/**
+ * Trigger durable document processing workflow for a contract.
+ *
+ * Dispatches the processing workflow via the Vercel Workflow SDK:
+ * - Returns 202 Accepted immediately with runId
+ * - Uses experimental_hook idempotency token to prevent duplicate runs
+ * - Zero long-running synchronous computation inside the Route Handler
+ */
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -17,19 +27,50 @@ export async function POST(
       return NextResponse.json({ error: "Invalid contract ID" }, { status: 400 });
     }
 
-    const result = await DocumentProcessingPipeline.processContract(
-      parseResult.data.id,
-      userId
-    );
+    const contractId = parseResult.data.id;
+    const contract = await requireContractOwnership(contractId, userId);
 
-    if (result.status === "failed") {
+    if (contract.status === "ready") {
       return NextResponse.json(
-        { error: result.error || "Processing failed", ...result },
-        { status: 500 }
+        {
+          message: "Contract is already processed and ready",
+          status: "ready",
+          contractId,
+        },
+        { status: 200 }
       );
     }
 
-    return NextResponse.json({ success: true, ...result });
+    const hookToken = `contract-processing:${contractId}`;
+
+    try {
+      const run = await start(contractProcessingWorkflow, [{ contractId, userId }], {
+        experimental_hook: { token: hookToken },
+      });
+
+      return NextResponse.json(
+        {
+          started: true,
+          runId: run.runId,
+          status: "processing",
+          contractId,
+        },
+        { status: 202 }
+      );
+    } catch (startError) {
+      if (HookConflictError.is(startError)) {
+        return NextResponse.json(
+          {
+            started: false,
+            runId: startError.conflictingRunId,
+            status: "already_running",
+            contractId,
+          },
+          { status: 409 }
+        );
+      }
+      throw startError;
+    }
   } catch (error) {
     if (error instanceof AppError) {
       return NextResponse.json(
