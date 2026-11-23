@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
-import { ShieldCheck, BookOpen } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
 export function Header() {
   return (
@@ -20,13 +20,18 @@ export function Header() {
           </span>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-5">
           <Link
-            href="/docs"
-            className="text-xs text-slate-500 hover:text-slate-900 transition flex items-center gap-1 font-medium"
+            href="/dashboard"
+            className="text-xs text-slate-600 hover:text-indigo-600 transition font-medium"
           >
-            <BookOpen className="h-3.5 w-3.5" />
-            Documentation
+            Contracts
+          </Link>
+          <Link
+            href="/evaluation"
+            className="text-xs text-slate-600 hover:text-indigo-600 transition font-medium"
+          >
+            QA Evaluation
           </Link>
           <div className="h-4 w-px bg-slate-200" />
           <UserButton
