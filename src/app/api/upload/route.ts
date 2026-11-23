@@ -1,6 +1,7 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/protect";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { ContractsService } from "@/modules/contracts";
 import { MAX_FILE_SIZE_BYTES, ALLOWED_MIME_TYPES } from "@/lib/validation/contracts";
 import { logger } from "@/lib/logger";
@@ -15,6 +16,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       onBeforeGenerateToken: async (pathname, clientPayload) => {
         // 1. Authenticate user strictly on server
         const { userId } = await requireAuth();
+
+        const rateLimitResult = checkRateLimit(userId, "upload");
+        if (rateLimitResult.limited) {
+          throw new Error("Rate limit exceeded for document uploads. Please wait before uploading again.");
+        }
 
         if (!clientPayload) {
           throw new Error("Missing client payload for upload authorization");

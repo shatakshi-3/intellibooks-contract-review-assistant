@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAuth, requireContractOwnership } from "@/lib/auth/protect";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { chatSessionParamsSchema, sendMessageSchema } from "@/lib/validation/chat";
 import { ChatService } from "@/modules/chat";
 import { AppError } from "@/lib/errors";
@@ -15,6 +16,17 @@ interface RouteProps {
 export async function POST(req: Request, { params }: RouteProps) {
   try {
     const { userId } = await requireAuth();
+
+    const rateLimit = checkRateLimit(userId, "chat");
+    if (rateLimit.limited) {
+      return NextResponse.json(
+        {
+          error: "Chat rate limit exceeded. Please wait a moment before sending another message.",
+          code: "RATE_LIMITED",
+        },
+        { status: 429 }
+      );
+    }
     const resolvedParams = await params;
 
     const parseParams = chatSessionParamsSchema.safeParse(resolvedParams);

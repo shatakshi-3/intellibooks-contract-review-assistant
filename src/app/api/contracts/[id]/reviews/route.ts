@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAuth, requireContractOwnership } from "@/lib/auth/protect";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { contractIdSchema } from "@/lib/validation/contracts";
 import { AppError } from "@/lib/errors";
 import { start } from "workflow/api";
@@ -19,6 +20,17 @@ export async function POST(
 ) {
   try {
     const { userId } = await requireAuth();
+
+    const rateLimit = checkRateLimit(userId, "review");
+    if (rateLimit.limited) {
+      return NextResponse.json(
+        {
+          error: "Review rate limit exceeded. Please wait shortly before triggering another review.",
+          code: "RATE_LIMITED",
+        },
+        { status: 429 }
+      );
+    }
     const resolvedParams = await params;
 
     const parseResult = contractIdSchema.safeParse(resolvedParams);
@@ -116,6 +128,17 @@ export async function GET(
 ) {
   try {
     const { userId } = await requireAuth();
+
+    const rateLimit = checkRateLimit(userId, "review");
+    if (rateLimit.limited) {
+      return NextResponse.json(
+        {
+          error: "Review rate limit exceeded. Please wait shortly before triggering another review.",
+          code: "RATE_LIMITED",
+        },
+        { status: 429 }
+      );
+    }
     const resolvedParams = await params;
 
     const parseResult = contractIdSchema.safeParse(resolvedParams);
