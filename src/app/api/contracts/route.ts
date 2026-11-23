@@ -19,11 +19,12 @@ export async function POST(req: Request) {
     }
 
     if (isDemoMode()) {
-      const contract = DemoService.addContract({
+      const contract = await DemoService.createContract({
         userId,
         filename: parseResult.data.filename,
         fileType: parseResult.data.fileType,
         fileSizeBytes: parseResult.data.fileSize,
+        contentType: parseResult.data.contentType,
       });
       return NextResponse.json({ contract }, { status: 201 });
     }
@@ -64,20 +65,6 @@ export async function GET(req: Request) {
         { error: "Invalid query parameters", details: parseResult.error.format() },
         { status: 400 }
       );
-    }
-
-    if (isDemoMode()) {
-      // Strictly scoped to authenticated user in Demo Mode
-      const demoContracts = DemoService.getContracts(userId);
-      return NextResponse.json({
-        data: demoContracts,
-        pagination: {
-          page: 1,
-          limit: 20,
-          total: demoContracts.length,
-          totalPages: Math.max(1, Math.ceil(demoContracts.length / 20)),
-        },
-      });
     }
 
     const result = await ContractsService.listContracts(userId, parseResult.data);

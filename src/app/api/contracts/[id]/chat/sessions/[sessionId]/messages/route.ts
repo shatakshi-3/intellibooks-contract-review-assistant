@@ -27,11 +27,6 @@ export async function GET(_req: Request, { params }: RouteProps) {
     const { id: contractId, sessionId } = parseParams.data;
     await requireContractOwnership(contractId, userId);
 
-    if (isDemoMode()) {
-      const messages = DemoService.listMessages(sessionId);
-      return NextResponse.json({ messages });
-    }
-
     const { messages } = await ChatService.getSession(sessionId, contractId, userId);
     return NextResponse.json({ messages });
   } catch (error) {
@@ -69,7 +64,7 @@ export async function POST(req: Request, { params }: RouteProps) {
     }
 
     if (isDemoMode()) {
-      const { stream } = await DemoService.sendMessageStream({
+      const { stream } = await DemoService.sendChatMessageStream({
         sessionId,
         contractId,
         userId,

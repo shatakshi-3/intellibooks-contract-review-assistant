@@ -32,14 +32,6 @@ export async function GET(
     const { id: contractId, reviewId } = parseResult.data;
     await requireContractOwnership(contractId, userId);
 
-    if (isDemoMode()) {
-      const { review } = DemoService.getReview(contractId, userId);
-      if (review && (review.id === reviewId || reviewId.startsWith("rev_") || reviewId === "33333333-3333-3333-3333-333333333333")) {
-        return NextResponse.json({ review });
-      }
-      return NextResponse.json({ error: "Review not found" }, { status: 404 });
-    }
-
     const [reviewRecord] = await db
       .select()
       .from(reviews)

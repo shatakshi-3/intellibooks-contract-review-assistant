@@ -1,53 +1,19 @@
 /**
- * Demo Mode Configuration & Production Safeguards.
+ * Demo Processing Configuration & Environment Guards.
  *
- * Provides isolated deterministic identities and data for local assignment demonstrations
- * without requiring Clerk, OpenRouter, or Vercel Blob.
+ * Demo mode replaces unavailable external cloud services (Vercel Blob, OpenRouter AI)
+ * with deterministic local processing results, WITHOUT compromising user authentication
+ * or multi-tenant database isolation.
  *
- * CRITICAL SECURITY SAFEGUARD:
- * Demo mode is strictly forbidden in production environments.
+ * Every user maintains their own independent Clerk account and PostgreSQL records.
  */
 
-export interface DemoUser {
-  id: string;
-  clerkId: string;
-  email: string;
-  name: string;
-  role: string;
-  tenantLabel: string;
-  organization: string;
-}
-
-export const DEMO_USER_1: DemoUser = {
-  id: "usr_00000000-0000-0000-0000-000000000001",
-  clerkId: "user_demo_counsel_alpha",
-  email: "alex.morgan@cloudscale-legal.com",
-  name: "Alex Morgan",
-  role: "admin",
-  tenantLabel: "Tenant A (Primary Counsel)",
-  organization: "CloudScale Legal & Compliance",
-};
-
-export const DEMO_USER_2: DemoUser = {
-  id: "usr_00000000-0000-0000-0000-000000000002",
-  clerkId: "user_demo_reviewer_beta",
-  email: "sarah.chen@external-audit.com",
-  name: "Sarah Chen",
-  role: "user",
-  tenantLabel: "Tenant B (External Reviewer)",
-  organization: "Apex Assurance Partners",
-};
-
-export const DEMO_USERS = [DEMO_USER_1, DEMO_USER_2];
-
-// Default user when no session cookie is specified
-export const DEMO_USER = DEMO_USER_1;
-
 export const isDemoMode = (): boolean => {
-  // 1. Strict production safeguard: NEVER activate in production
+  // 1. Strict production safeguard: NEVER activate in production environments
   if (
     process.env.NODE_ENV === "production" ||
-    process.env.VERCEL_ENV === "production"
+    process.env.VERCEL_ENV === "production" ||
+    process.env.VERCEL === "1"
   ) {
     return false;
   }
@@ -62,13 +28,9 @@ export const isDemoMode = (): boolean => {
     return true;
   }
 
-  // 4. Missing or placeholder Clerk credentials fallback for local DX
-  const clerkKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-  if (
-    !clerkKey ||
-    clerkKey.includes("placeholder") ||
-    clerkKey === "pk_test_Y2xlcmsuZXhhbXBsZS5jb20k"
-  ) {
+  // 4. Missing or placeholder OpenRouter key triggers deterministic demo processing locally
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+  if (!openRouterKey || openRouterKey.includes("mock") || openRouterKey.includes("placeholder")) {
     return true;
   }
 

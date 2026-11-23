@@ -38,19 +38,25 @@ export async function POST(req: Request, { params }: RouteProps) {
       );
     }
 
-    if (isDemoMode()) {
-      let sessionId = parseBody.data.sessionId;
-      if (!sessionId) {
-        const existingSessions = DemoService.listSessions(contractId, userId);
-        if (existingSessions.length > 0) {
-          sessionId = existingSessions[0].id;
-        } else {
-          const newSession = DemoService.createSession(contractId, userId, parseBody.data.message.slice(0, 40));
-          sessionId = newSession.id;
-        }
-      }
+    let sessionId = parseBody.data.sessionId;
 
-      const { stream } = await DemoService.sendMessageStream({
+    if (!sessionId) {
+      // Find latest session or create one in Neon DB
+      const existingSessions = await ChatService.listSessions(contractId, userId);
+      if (existingSessions.length > 0) {
+        sessionId = existingSessions[0].id;
+      } else {
+        const newSession = await ChatService.createSession({
+          contractId,
+          userId,
+          title: parseBody.data.message.slice(0, 40),
+        });
+        sessionId = newSession.id;
+      }
+    }
+
+    if (isDemoMode()) {
+      const { stream } = await DemoService.sendChatMessageStream({
         sessionId,
         contractId,
         userId,
@@ -76,23 +82,6 @@ export async function POST(req: Request, { params }: RouteProps) {
         },
         { status: 429 }
       );
-    }
-
-    let sessionId = parseBody.data.sessionId;
-
-    if (!sessionId) {
-      // Find latest session or create one
-      const existingSessions = await ChatService.listSessions(contractId, userId);
-      if (existingSessions.length > 0) {
-        sessionId = existingSessions[0].id;
-      } else {
-        const newSession = await ChatService.createSession({
-          contractId,
-          userId,
-          title: parseBody.data.message.slice(0, 40),
-        });
-        sessionId = newSession.id;
-      }
     }
 
     const { stream } = await ChatService.sendMessageStream({

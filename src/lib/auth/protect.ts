@@ -5,70 +5,74 @@
  * on every protected resource access.
  *
  * Key security rules:
- * - userId is ALWAYS derived from the verified Clerk session (or active demo tenant in demo mode)
- * - NEVER trust userId from request body, params, or headers
+ * - userId is ALWAYS derived from the verified Clerk session
+ * - NEVER trust userId from request body, params, headers, or cookies
  * - Ownership check returns 404 (not 403) to avoid leaking resource existence
  */
 
-import { auth } from "@clerk/nextjs/server";
-import { cookies } from "next/headers";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { users, contracts } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { AppError } from "@/lib/errors";
-import { isDemoMode, DEMO_USER_1, DEMO_USER_2, DemoService } from "@/demo";
 
 /**
- * Resolves the currently active demo tenant from the session cookie.
- */
-export async function getActiveDemoUser() {
-  try {
-    const cookieStore = await cookies();
-    const demoCookie = cookieStore.get("demo_user_id")?.value;
-    if (demoCookie === DEMO_USER_2.id) {
-      return DEMO_USER_2;
-    }
-  } catch {
-    // If called outside of request context, fall back to User 1
-  }
-  return DEMO_USER_1;
-}
-
-/**
- * Verify the session and return the internal user record.
+ * Verify the Clerk session and return the internal user record.
  * Throws 401 if not authenticated.
  */
 export async function requireAuth(): Promise<{
   userId: string; // Internal UUID
   clerkId: string; // Clerk's user ID
 }> {
-  if (isDemoMode()) {
-    const activeUser = await getActiveDemoUser();
-    return { userId: activeUser.id, clerkId: activeUser.clerkId };
-  }
-
   const { userId: clerkId } = await auth();
 
   if (!clerkId) {
-    throw AppError.unauthorized();
+    throw AppError.unauthorized("Authentication required");
   }
 
   // Look up internal user record
-  const user = await db
+  const existingUsers = await db
     .select({ id: users.id, clerkId: users.clerkId })
     .from(users)
     .where(eq(users.clerkId, clerkId))
     .limit(1);
 
-  if (user.length === 0) {
-    // User exists in Clerk but not synced to our DB yet
-    // This can happen if the webhook hasn't fired yet
-    throw AppError.unauthorized(
-      "User account is being set up. Please try again in a moment."
-    );
+  if (existingUsers.length > 0) {
+    return { userId: existingUsers[0].id, clerkId: existingUsers[0].clerkId };
   }
 
-  return { userId: user[0].id, clerkId: user[0].clerkId };
+  // Just-In-Time auto-provisioning: If user signed up via Clerk but webhook has not fired yet,
+  // sync their user profile immediately into Neon PostgreSQL so local usage never stalls.
+  try {
+    const clerkUser = await currentUser();
+    if (clerkUser) {
+      const email =
+        clerkUser.emailAddresses?.[0]?.emailAddress ?? `${clerkId}@clerk.user`;
+      const name = `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim() || null;
+
+      const [newUser] = await db
+        .insert(users)
+        .values({
+          clerkId,
+          email,
+          name,
+          role: "user",
+        })
+        .onConflictDoUpdate({
+          target: users.clerkId,
+          set: { updatedAt: new Date() },
+        })
+        .returning({ id: users.id, clerkId: users.clerkId });
+
+      return { userId: newUser.id, clerkId: newUser.clerkId };
+    }
+  } catch {
+    // If Clerk API fails, throw unauthorized
+  }
+
+  throw AppError.unauthorized(
+    "User account is being set up. Please try again in a moment."
+  );
 }
 
 /**
@@ -81,29 +85,17 @@ export async function requireContractOwnership(
   contractId: string,
   userId: string
 ) {
-  if (isDemoMode()) {
-    const demoContract = DemoService.getContractById(contractId, userId);
-    if (demoContract) {
-      return demoContract;
-    }
-    // Real server-side isolation: returns 404 if belongs to another user
-    throw AppError.notFound("Contract not found");
+  const contract = await db
+    .select()
+    .from(contracts)
+    .where(and(eq(contracts.id, contractId), eq(contracts.userId, userId)))
+    .limit(1);
+
+  if (contract.length > 0) {
+    return contract[0];
   }
 
-  try {
-    const contract = await db
-      .select()
-      .from(contracts)
-      .where(and(eq(contracts.id, contractId), eq(contracts.userId, userId)))
-      .limit(1);
-
-    if (contract.length > 0) {
-      return contract[0];
-    }
-  } catch (error) {
-    throw error;
-  }
-
+  // Real server-side isolation: strictly 404 if not found or belongs to another user
   throw AppError.notFound("Contract not found");
 }
 
@@ -115,14 +107,6 @@ export async function requireRole(
   userId: string,
   requiredRole: string
 ): Promise<void> {
-  if (isDemoMode()) {
-    const activeUser = await getActiveDemoUser();
-    if (requiredRole === "admin" && activeUser.role !== "admin") {
-      throw AppError.forbidden("Admin role required to view evaluation dashboard");
-    }
-    return;
-  }
-
   const user = await db
     .select({ role: users.role })
     .from(users)

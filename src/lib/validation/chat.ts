@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 export const chatSessionParamsSchema = z.object({
-  id: z.string().min(1, "Invalid contract ID"),
-  sessionId: z.string().min(1, "Invalid session ID"),
+  id: z.string().uuid("Invalid contract ID"),
+  sessionId: z.string().uuid("Invalid session ID"),
 });
 
 export const createSessionSchema = z.object({
@@ -18,7 +18,7 @@ export const sendMessageSchema = z.object({
 });
 
 export const quickChatSchema = z.object({
-  sessionId: z.string().min(1, "Invalid session ID").optional(),
+  sessionId: z.string().uuid("Invalid session ID").optional(),
   message: z
     .string()
     .trim()

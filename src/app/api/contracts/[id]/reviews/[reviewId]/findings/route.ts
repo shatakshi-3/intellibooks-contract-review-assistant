@@ -32,15 +32,6 @@ export async function GET(
     const { id: contractId, reviewId } = parseResult.data;
     await requireContractOwnership(contractId, userId);
 
-    if (isDemoMode()) {
-      const { findings } = DemoService.getReview(contractId, userId);
-      return NextResponse.json({
-        reviewId,
-        contractId,
-        findings,
-      });
-    }
-
     // Verify review belongs to this contract
     const [reviewRecord] = await db
       .select({ id: reviews.id })

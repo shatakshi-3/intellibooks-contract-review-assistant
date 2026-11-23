@@ -3,12 +3,8 @@
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import { ShieldCheck } from "lucide-react";
-import { isDemoMode } from "@/demo/config";
-import { DemoUserBadge } from "@/demo/auth";
 
 export function Header() {
-  const demoActive = isDemoMode();
-
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur">
       <div className="flex h-16 items-center justify-between px-6">
@@ -38,17 +34,13 @@ export function Header() {
             QA Evaluation
           </Link>
           <div className="h-4 w-px bg-slate-200" />
-          {demoActive ? (
-            <DemoUserBadge />
-          ) : (
-            <UserButton
-              appearance={{
-                elements: {
-                  userButtonAvatarBox: "h-8 w-8",
-                },
-              }}
-            />
-          )}
+          <UserButton
+            appearance={{
+              elements: {
+                userButtonAvatarBox: "h-8 w-8 shadow-sm",
+              },
+            }}
+          />
         </div>
       </div>
     </header>

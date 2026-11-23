@@ -32,14 +32,14 @@ export async function POST(
     const contract = await requireContractOwnership(contractId, userId);
 
     if (isDemoMode()) {
-      const { review } = DemoService.triggerReview(contractId, userId);
+      const { review } = await DemoService.triggerReview({ contractId, userId });
       return NextResponse.json(
         {
           started: true,
           runId: `run_${Date.now()}`,
           status: "complete",
           contractId,
-          versionId: "ver_demo_01",
+          versionId: review.contractVersionId,
           reviewId: review.id,
         },
         { status: 200 }
@@ -153,11 +153,6 @@ export async function GET(
 
     const contractId = parseResult.data.id;
     await requireContractOwnership(contractId, userId);
-
-    if (isDemoMode()) {
-      const { review } = DemoService.getReview(contractId, userId);
-      return NextResponse.json({ reviews: review ? [review] : [] });
-    }
 
     const rateLimit = checkRateLimit(userId, "review");
     if (rateLimit.limited) {

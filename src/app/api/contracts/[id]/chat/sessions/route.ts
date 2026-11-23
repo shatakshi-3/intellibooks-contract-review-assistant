@@ -27,11 +27,6 @@ export async function GET(_req: Request, { params }: RouteProps) {
     const contractId = parseResult.data.id;
     await requireContractOwnership(contractId, userId);
 
-    if (isDemoMode()) {
-      const sessions = DemoService.listSessions(contractId, userId);
-      return NextResponse.json({ sessions });
-    }
-
     const sessions = await ChatService.listSessions(contractId, userId);
     return NextResponse.json({ sessions });
   } catch (error) {
@@ -62,11 +57,6 @@ export async function POST(req: Request, { params }: RouteProps) {
     const body = await req.json().catch(() => ({}));
     const parseBody = createSessionSchema.safeParse(body);
     const title = parseBody.success ? parseBody.data.title : undefined;
-
-    if (isDemoMode()) {
-      const session = DemoService.createSession(contractId, userId, title);
-      return NextResponse.json({ session }, { status: 201 });
-    }
 
     const session = await ChatService.createSession({
       contractId,

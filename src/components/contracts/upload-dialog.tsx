@@ -219,6 +219,23 @@ export function UploadDialog({ isOpen, onClose, onUploadSuccess }: UploadDialogP
               Drag and drop your document here, or <span className="text-indigo-600 underline">browse</span>
             </p>
             <p className="text-xs text-slate-400 mt-1">Supports PDF, Word (DOCX), and Plain Text</p>
+            <div className="mt-4 pt-3 border-t border-slate-200/80">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const sampleFile = new File(
+                    ["MASTER SERVICES AGREEMENT\n\nThis Master Services Agreement is entered into as of January 15, 2026 by and between CloudScale Technologies, Inc. and Acme Global Enterprises, LLC."],
+                    "Master_Services_Agreement_CloudScale.pdf",
+                    { type: "application/pdf" }
+                  );
+                  setFile(sampleFile);
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50/80 hover:bg-indigo-100/80 px-3 py-1.5 rounded-lg transition"
+              >
+                <span>📄 Use Sample Contract (CloudScale MSA)</span>
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
