@@ -15,7 +15,10 @@ import {
   Copy,
   Check,
   Search,
+  MessageSquare,
+  ShieldCheck,
 } from "lucide-react";
+import { ChatPanel } from "@/components/chat/chat-panel";
 import { CHECKLIST_ITEMS, CHECKLIST_LABELS, type ChecklistItem } from "@/modules/reviews/constants";
 import type { Contract, Review, ReviewFinding } from "@/lib/db/schema";
 
@@ -35,6 +38,7 @@ export default function ContractDetailPage({ params }: ContractDetailPageProps) 
   const [isStartingReview, setIsStartingReview] = useState(false);
   const [copiedQuoteId, setCopiedQuoteId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"review" | "chat">("review");
 
   // 1. Fetch Contract & Reviews
   useEffect(() => {
@@ -259,6 +263,40 @@ export default function ContractDetailPage({ params }: ContractDetailPageProps) 
         </div>
       </div>
 
+      {/* Navigation Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200">
+        <button
+          type="button"
+          onClick={() => setActiveTab("review")}
+          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition ${
+            activeTab === "review"
+              ? "border-indigo-600 text-indigo-600"
+              : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
+          }`}
+        >
+          <ShieldCheck className="h-4 w-4" />
+          <span>Review Checklist</span>
+          {findings.length > 0 && (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 font-mono">
+              {findings.length}/8
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("chat")}
+          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition ${
+            activeTab === "chat"
+              ? "border-indigo-600 text-indigo-600"
+              : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
+          }`}
+        >
+          <MessageSquare className="h-4 w-4" />
+          <span>Contract Q&A Chat</span>
+        </button>
+      </div>
+
       {errorMsg && (
         <div className="rounded-lg bg-rose-50 border border-rose-200 p-4 text-sm text-rose-800 flex items-center gap-2">
           <AlertCircle className="h-5 w-5 text-rose-500 shrink-0" />
@@ -266,14 +304,18 @@ export default function ContractDetailPage({ params }: ContractDetailPageProps) 
         </div>
       )}
 
-      {/* Automated Analysis Notice */}
-      <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 flex items-start gap-3 text-xs text-amber-900">
-        <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-        <div>
-          <span className="font-semibold text-amber-950">Automated Legal Document Analysis: </span>
-          The findings below are generated via automated NLP and verifiable quote extraction. This report is provided for informational and preliminary review purposes only and does not constitute formal legal advice or guarantees of compliance. All terms should be independently verified with a qualified attorney.
-        </div>
-      </div>
+      {activeTab === "chat" ? (
+        <ChatPanel contractId={contractId} contractTitle={contract?.originalFilename} />
+      ) : (
+        <>
+          {/* Automated Analysis Notice */}
+          <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 flex items-start gap-3 text-xs text-amber-900">
+            <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-semibold text-amber-950">Automated Legal Document Analysis: </span>
+              The findings below are generated via automated NLP and verifiable quote extraction. This report is provided for informational and preliminary review purposes only and does not constitute formal legal advice or guarantees of compliance. All terms should be independently verified with a qualified attorney.
+            </div>
+          </div>
 
       {/* Main Review Section */}
       {selectedReview ? (
@@ -512,6 +554,8 @@ export default function ContractDetailPage({ params }: ContractDetailPageProps) 
             )}
           </button>
         </div>
+      )}
+        </>
       )}
     </div>
   );
