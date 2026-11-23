@@ -63,7 +63,7 @@ flowchart TD
 
     API -->|Generate Upload Token| Blob
     Browser -->|Direct-to-Storage Upload| Blob
-    API -->|Trigger Ingestion / Review| Workflows
+    API -->|"Trigger Ingestion / Review"| Workflows
 
     Workflows --> Steps
     Steps -->|Fetch Private Raw File| Blob
@@ -74,7 +74,7 @@ flowchart TD
 
     API -->|Cosine Similarity RAG Query| Neon
     API -->|Synthesize Grounded Answer| LLM
-    API -->|Server-Sent Events (SSE Stream)| Browser
+    API -->|"Server-Sent Events (SSE Stream)"| Browser
 ```
 
 ### Ingestion & Execution Flow
