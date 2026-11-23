@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { FileText, PlusCircle, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
 
 export default function DashboardPage() {

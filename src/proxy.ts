@@ -8,11 +8,20 @@ const isPublicRoute = createRouteMatcher([
   "/api/webhooks(.*)",
 ]);
 
-export default clerkMiddleware(async (auth, req) => {
+/**
+ * Next.js 16 Proxy convention for edge routing and Clerk session validation.
+ *
+ * NOTE: Proxy-level checks provide defense-in-depth at the edge, but NEVER replace
+ * server-side authentication (requireAuth) and resource authorization (requireContractOwnership)
+ * inside Route Handlers and Server Actions.
+ */
+export const proxy = clerkMiddleware(async (auth, req) => {
   if (!isPublicRoute(req)) {
     await auth.protect();
   }
 });
+
+export default proxy;
 
 export const config = {
   matcher: [

@@ -268,6 +268,7 @@ export class OpenRouterProvider implements AIProvider {
  * Minimal Zod-to-JSON-Schema converter for prompt injection.
  * Handles the common types used in our review schemas.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function zodToJsonSchema(schema: any): Record<string, unknown> {
   if (schema instanceof z.ZodObject) {
     const shape = schema.shape;
