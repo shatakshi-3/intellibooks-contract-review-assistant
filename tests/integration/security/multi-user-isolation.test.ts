@@ -6,8 +6,6 @@ import { GET as getReviewFindings } from "@/app/api/contracts/[id]/reviews/[revi
 import { GET as getChatSession } from "@/app/api/contracts/[id]/chat/sessions/[sessionId]/route";
 import { requireAuth, requireContractOwnership } from "@/lib/auth/protect";
 import { ContractsService } from "@/modules/contracts/service";
-import { ChatService } from "@/modules/chat/service";
-import { db } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 
 // Mock @/lib/auth/protect

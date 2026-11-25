@@ -3,7 +3,6 @@ import { requireAuth } from "@/lib/auth/protect";
 import { ContractsService } from "@/modules/contracts";
 import { createContractSchema, listContractsSchema } from "@/lib/validation/contracts";
 import { AppError } from "@/lib/errors";
-import { isDemoMode, DemoService } from "@/demo";
 
 export async function POST(req: Request) {
   try {
@@ -16,17 +15,6 @@ export async function POST(req: Request) {
         { error: "Validation failed", details: parseResult.error.format() },
         { status: 400 }
       );
-    }
-
-    if (isDemoMode()) {
-      const contract = await DemoService.createContract({
-        userId,
-        filename: parseResult.data.filename,
-        fileType: parseResult.data.fileType,
-        fileSizeBytes: parseResult.data.fileSize,
-        contentType: parseResult.data.contentType,
-      });
-      return NextResponse.json({ contract }, { status: 201 });
     }
 
     const contract = await ContractsService.createPendingContract({

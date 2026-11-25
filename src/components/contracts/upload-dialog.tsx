@@ -4,7 +4,6 @@ import { useState, useRef } from "react";
 import { upload } from "@vercel/blob/client";
 import { UploadCloud, FileText, X, AlertCircle, Loader2 } from "lucide-react";
 import { ALLOWED_EXTENSIONS, MAX_FILE_SIZE_BYTES } from "@/lib/validation/contracts";
-import { isDemoMode } from "@/demo/config";
 
 interface UploadDialogProps {
   isOpen: boolean;
@@ -108,28 +107,11 @@ export function UploadDialog({ isOpen, onClose, onUploadSuccess }: UploadDialogP
 
       const { contract } = await initRes.json();
       setProgress(20);
-      if (isDemoMode()) {
-        setProgress(50);
-        setStatusMessage("Extracting text and chunking document sections...");
-        await new Promise((r) => setTimeout(r, 400));
-        setProgress(85);
-        await fetch(`/api/contracts/${contract.id}/process`, { method: "POST" });
-        setProgress(100);
-        setStatusMessage("Contract uploaded and indexed successfully!");
-        setTimeout(() => {
-          setIsUploading(false);
-          setFile(null);
-          onUploadSuccess();
-          onClose();
-        }, 700);
-        return;
-      }
-
       setStatusMessage("Uploading directly to private Blob storage...");
 
       // Step 2: Upload directly from browser to Vercel Blob store
       await upload(file.name, file, {
-        access: "public", // Will be secured by private access in Vercel
+        access: "public", // Secured by private access in Vercel
         handleUploadUrl: "/api/upload",
         clientPayload: JSON.stringify({
           contractId: contract.id,
@@ -139,21 +121,33 @@ export function UploadDialog({ isOpen, onClose, onUploadSuccess }: UploadDialogP
           contentType,
         }),
         onUploadProgress: (progressEvent) => {
-          // Map browser upload progress from 20% to 90%
-          const percentage = Math.round(20 + progressEvent.percentage * 0.7);
+          // Map browser upload progress from 20% to 85%
+          const percentage = Math.round(20 + progressEvent.percentage * 0.65);
           setProgress(percentage);
         },
       });
 
+      // Step 3: Trigger durable document processing workflow
+      setProgress(90);
+      setStatusMessage("Starting document extraction & indexing workflow...");
+      const processRes = await fetch(`/api/contracts/${contract.id}/process`, {
+        method: "POST",
+      });
+
+      if (!processRes.ok) {
+        const errorData = await processRes.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to trigger processing workflow");
+      }
+
       setProgress(100);
-      setStatusMessage("Upload verified successfully!");
+      setStatusMessage("Contract uploaded and processing started!");
 
       setTimeout(() => {
         setIsUploading(false);
         setFile(null);
         onUploadSuccess();
         onClose();
-      }, 800);
+      }, 700);
     } catch (err) {
       setIsUploading(false);
       setProgress(0);
@@ -219,23 +213,6 @@ export function UploadDialog({ isOpen, onClose, onUploadSuccess }: UploadDialogP
               Drag and drop your document here, or <span className="text-indigo-600 underline">browse</span>
             </p>
             <p className="text-xs text-slate-400 mt-1">Supports PDF, Word (DOCX), and Plain Text</p>
-            <div className="mt-4 pt-3 border-t border-slate-200/80">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const sampleFile = new File(
-                    ["MASTER SERVICES AGREEMENT\n\nThis Master Services Agreement is entered into as of January 15, 2026 by and between CloudScale Technologies, Inc. and Acme Global Enterprises, LLC."],
-                    "Master_Services_Agreement_CloudScale.pdf",
-                    { type: "application/pdf" }
-                  );
-                  setFile(sampleFile);
-                }}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50/80 hover:bg-indigo-100/80 px-3 py-1.5 rounded-lg transition"
-              >
-                <span>📄 Use Sample Contract (CloudScale MSA)</span>
-              </button>
-            </div>
           </div>
         ) : (
           <div className="space-y-4">

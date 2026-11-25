@@ -4,7 +4,6 @@ import { contractIdSchema } from "@/lib/validation/contracts";
 import { createSessionSchema } from "@/lib/validation/chat";
 import { ChatService } from "@/modules/chat";
 import { AppError } from "@/lib/errors";
-import { isDemoMode, DemoService } from "@/demo";
 
 interface RouteProps {
   params: Promise<{ id: string }>;

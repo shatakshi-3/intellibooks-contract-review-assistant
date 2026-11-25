@@ -5,7 +5,6 @@ import { db } from "@/lib/db";
 import { reviews } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
-import { isDemoMode, DemoService } from "@/demo";
 
 const paramsSchema = z.object({
   id: z.string(),

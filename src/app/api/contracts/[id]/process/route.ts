@@ -5,7 +5,6 @@ import { AppError } from "@/lib/errors";
 import { start } from "workflow/api";
 import { HookConflictError } from "workflow/errors";
 import { contractProcessingWorkflow } from "@/modules/processing/workflows/contract-processing";
-import { isDemoMode } from "@/demo";
 
 /**
  * Trigger durable document processing workflow for a contract.
@@ -25,18 +24,6 @@ export async function POST(
 
     const contractId = parseResult.data.id;
     const contract = await requireContractOwnership(contractId, userId);
-
-    if (isDemoMode()) {
-      return NextResponse.json(
-        {
-          started: true,
-          status: "ready",
-          contractId,
-          message: "Contract processed and ready in demo mode",
-        },
-        { status: 200 }
-      );
-    }
 
     if (contract.status === "ready") {
       return NextResponse.json(

@@ -3,7 +3,6 @@ import { requireAuth, requireContractOwnership } from "@/lib/auth/protect";
 import { chatSessionParamsSchema } from "@/lib/validation/chat";
 import { ChatService } from "@/modules/chat";
 import { AppError } from "@/lib/errors";
-import { isDemoMode, DemoService } from "@/demo";
 
 interface RouteProps {
   params: Promise<{ id: string; sessionId: string }>;

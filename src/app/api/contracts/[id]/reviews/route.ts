@@ -9,11 +9,10 @@ import { contractReviewWorkflow } from "@/modules/reviews/workflows/review-workf
 import { db } from "@/lib/db";
 import { reviews, contractVersions } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
-import { isDemoMode, DemoService } from "@/demo";
 
 /**
  * POST /api/contracts/[id]/reviews
- * Initiates an automated contract review run using the Vercel Workflow SDK (or DemoService in Demo Mode).
+ * Initiates an automated contract review run using the Vercel Workflow SDK.
  */
 export async function POST(
   _req: Request,
@@ -30,21 +29,6 @@ export async function POST(
 
     const contractId = parseResult.data.id;
     const contract = await requireContractOwnership(contractId, userId);
-
-    if (isDemoMode()) {
-      const { review } = await DemoService.triggerReview({ contractId, userId });
-      return NextResponse.json(
-        {
-          started: true,
-          runId: `run_${Date.now()}`,
-          status: "complete",
-          contractId,
-          versionId: review.contractVersionId,
-          reviewId: review.id,
-        },
-        { status: 200 }
-      );
-    }
 
     const rateLimit = checkRateLimit(userId, "review");
     if (rateLimit.limited) {

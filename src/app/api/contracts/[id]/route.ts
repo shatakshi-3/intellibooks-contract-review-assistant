@@ -3,7 +3,6 @@ import { requireAuth } from "@/lib/auth/protect";
 import { ContractsService } from "@/modules/contracts";
 import { contractIdSchema } from "@/lib/validation/contracts";
 import { AppError } from "@/lib/errors";
-import { isDemoMode, DemoService } from "@/demo";
 
 export async function GET(
   _req: Request,

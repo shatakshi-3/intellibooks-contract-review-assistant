@@ -5,7 +5,6 @@ import { contractIdSchema } from "@/lib/validation/contracts";
 import { quickChatSchema } from "@/lib/validation/chat";
 import { ChatService } from "@/modules/chat";
 import { AppError } from "@/lib/errors";
-import { isDemoMode, DemoService } from "@/demo";
 
 interface RouteProps {
   params: Promise<{ id: string }>;
@@ -53,24 +52,6 @@ export async function POST(req: Request, { params }: RouteProps) {
         });
         sessionId = newSession.id;
       }
-    }
-
-    if (isDemoMode()) {
-      const { stream } = await DemoService.sendChatMessageStream({
-        sessionId,
-        contractId,
-        userId,
-        message: parseBody.data.message,
-      });
-
-      return new Response(stream, {
-        headers: {
-          "Content-Type": "text/event-stream; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          Connection: "keep-alive",
-          "X-Accel-Buffering": "no",
-        },
-      });
     }
 
     const rateLimit = checkRateLimit(userId, "chat");

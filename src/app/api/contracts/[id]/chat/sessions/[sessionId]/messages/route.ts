@@ -4,7 +4,6 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { chatSessionParamsSchema, sendMessageSchema } from "@/lib/validation/chat";
 import { ChatService } from "@/modules/chat";
 import { AppError } from "@/lib/errors";
-import { isDemoMode, DemoService } from "@/demo";
 
 interface RouteProps {
   params: Promise<{ id: string; sessionId: string }>;
@@ -61,24 +60,6 @@ export async function POST(req: Request, { params }: RouteProps) {
         { error: parseBody.error.issues[0]?.message || "Invalid message content" },
         { status: 400 }
       );
-    }
-
-    if (isDemoMode()) {
-      const { stream } = await DemoService.sendChatMessageStream({
-        sessionId,
-        contractId,
-        userId,
-        message: parseBody.data.message,
-      });
-
-      return new Response(stream, {
-        headers: {
-          "Content-Type": "text/event-stream; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          Connection: "keep-alive",
-          "X-Accel-Buffering": "no",
-        },
-      });
     }
 
     const rateLimit = checkRateLimit(userId, "chat");
