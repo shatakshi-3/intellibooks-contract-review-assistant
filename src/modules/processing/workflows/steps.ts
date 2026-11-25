@@ -5,7 +5,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { requireContractOwnership } from "@/lib/auth/protect";
 import { extractDocument, type ExtractionResult } from "../extractors";
 import { DocumentChunker, type DocumentChunkData } from "../chunker";
-import { EmbeddingService, EMBEDDING_MODEL } from "@/modules/embeddings";
+import { EmbeddingService, EMBEDDING_MODEL, EMBEDDING_DIMENSIONS } from "@/modules/embeddings";
 import { logger } from "@/lib/logger";
 import { FatalError } from "workflow";
 
@@ -353,7 +353,7 @@ export async function generateAndSaveEmbeddingsStep(input: {
     const chunk = chunks[i];
     const embedding = embeddings[i];
 
-    if (!Array.isArray(embedding) || embedding.length !== 1536) {
+    if (!Array.isArray(embedding) || embedding.length !== EMBEDDING_DIMENSIONS) {
       throw new FatalError(`Invalid vector dimension: chunk ${chunk.chunkIndex} received ${embedding?.length}`);
     }
 
@@ -388,10 +388,10 @@ export async function finalizeContractStep(input: {
     throw new FatalError("Cannot finalize contract: zero chunks found");
   }
 
-  const missingEmbeddings = remainingChunks.filter((c) => !c.embedding || c.embedding.length !== 1536);
+  const missingEmbeddings = remainingChunks.filter((c) => !c.embedding || c.embedding.length !== EMBEDDING_DIMENSIONS);
   if (missingEmbeddings.length > 0) {
     throw new FatalError(
-      `Cannot finalize contract: ${missingEmbeddings.length}/${remainingChunks.length} chunks lack 1536-dim embeddings`
+      `Cannot finalize contract: ${missingEmbeddings.length}/${remainingChunks.length} chunks lack ${EMBEDDING_DIMENSIONS}-dim embeddings`
     );
   }
 

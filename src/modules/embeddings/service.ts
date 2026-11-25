@@ -1,14 +1,16 @@
 import { getAIProvider, type AIProvider } from "@/ai";
 import { logger } from "@/lib/logger";
 
-export const EMBEDDING_MODEL = "openai/text-embedding-3-small";
-export const EMBEDDING_DIMENSIONS = 1536;
+export const EMBEDDING_MODEL = process.env.AI_EMBEDDING_MODEL || "openai/text-embedding-3-small";
+export const EMBEDDING_DIMENSIONS = parseInt(process.env.AI_EMBEDDING_DIMENSIONS || "1536", 10);
 export const DEFAULT_BATCH_SIZE = 20;
 export const MAX_RETRIES = 3;
 
 export interface EmbeddingOptions {
   batchSize?: number;
   provider?: AIProvider;
+  model?: string;
+  expectedDimensions?: number;
 }
 
 export class EmbeddingService {
@@ -25,6 +27,8 @@ export class EmbeddingService {
 
     const provider = options?.provider ?? getAIProvider();
     const batchSize = options?.batchSize ?? DEFAULT_BATCH_SIZE;
+    const model = options?.model ?? EMBEDDING_MODEL;
+    const expectedDimensions = options?.expectedDimensions ?? EMBEDDING_DIMENSIONS;
 
     // 1. Sanitize & validate inputs
     const sanitized = texts.map((t, idx) => {
@@ -41,14 +45,14 @@ export class EmbeddingService {
     // 2. Process in controlled batches
     for (let i = 0; i < sanitized.length; i += batchSize) {
       const batch = sanitized.slice(i, i + batchSize);
-      const batchEmbeddings = await this.generateBatchWithRetry(provider, batch);
+      const batchEmbeddings = await this.generateBatchWithRetry(provider, batch, model, expectedDimensions);
 
       // 3. Strict dimension validation
       for (let j = 0; j < batchEmbeddings.length; j++) {
         const vec = batchEmbeddings[j];
-        if (!Array.isArray(vec) || vec.length !== EMBEDDING_DIMENSIONS) {
+        if (!Array.isArray(vec) || vec.length !== expectedDimensions) {
           throw new Error(
-            `Malformed embedding returned: expected ${EMBEDDING_DIMENSIONS} dimensions, got ${vec?.length ?? 0}`
+            `Malformed embedding returned: expected ${expectedDimensions} dimensions, got ${vec?.length ?? 0}`
           );
         }
       }
@@ -65,6 +69,8 @@ export class EmbeddingService {
   private static async generateBatchWithRetry(
     provider: AIProvider,
     inputs: string[],
+    model: string,
+    expectedDimensions: number,
     maxRetries = MAX_RETRIES
   ): Promise<number[][]> {
     let attempt = 0;
@@ -73,8 +79,9 @@ export class EmbeddingService {
     while (attempt <= maxRetries) {
       try {
         return await provider.generateEmbeddings({
-          model: EMBEDDING_MODEL,
+          model,
           inputs,
+          dimensions: expectedDimensions,
         });
       } catch (error) {
         attempt++;
@@ -84,6 +91,7 @@ export class EmbeddingService {
         logger.warn(`Embedding API failure (attempt ${attempt}/${maxRetries})`, {
           error: errMsg,
           inputBatchCount: inputs.length,
+          model,
         });
 
         if (isLastAttempt) {

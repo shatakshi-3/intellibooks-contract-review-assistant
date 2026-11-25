@@ -21,7 +21,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { requireContractOwnership } from "@/lib/auth/protect";
 import { extractDocument, type ExtractionResult } from "./extractors";
 import { DocumentChunker, type DocumentChunkData } from "./chunker";
-import { EmbeddingService, EMBEDDING_MODEL } from "@/modules/embeddings";
+import { EmbeddingService, EMBEDDING_MODEL, EMBEDDING_DIMENSIONS } from "@/modules/embeddings";
 import { logger } from "@/lib/logger";
 
 export interface PipelineOptions {
@@ -255,7 +255,7 @@ export class DocumentProcessingPipeline {
       stages.embedding = {
         status: "completed",
         durationMs: Date.now() - stepStartEmbed,
-        details: { vectorCount: embeddings.length, dimensions: 1536 },
+        details: { vectorCount: embeddings.length, dimensions: EMBEDDING_DIMENSIONS },
       };
 
       // 9. Persist chunks with vectors

@@ -8,7 +8,7 @@
 import { db } from "@/lib/db";
 import { documentChunks } from "@/lib/db/schema";
 import { and, eq, cosineDistance, asc, sql } from "drizzle-orm";
-import { EmbeddingService } from "@/modules/embeddings";
+import { EmbeddingService, EMBEDDING_DIMENSIONS } from "@/modules/embeddings";
 
 export interface RetrievedChunk {
   id: string;
@@ -40,10 +40,10 @@ export class RetrievalService {
     const limit = options?.limit ?? 5;
     const minSimilarity = options?.minSimilarity ?? 0.0;
 
-    // 1. Generate query embedding (1536 dims)
+    // 1. Generate query embedding
     const [queryVector] = await EmbeddingService.generateEmbeddings([queryText]);
-    if (!queryVector || queryVector.length !== 1536) {
-      throw new Error("Failed to generate 1536-dimensional query embedding");
+    if (!queryVector || queryVector.length !== EMBEDDING_DIMENSIONS) {
+      throw new Error(`Failed to generate ${EMBEDDING_DIMENSIONS}-dimensional query embedding`);
     }
 
     return await this.searchByVector(queryVector, contractId, userId, {

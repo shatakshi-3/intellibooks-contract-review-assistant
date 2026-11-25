@@ -59,6 +59,7 @@ export interface AIProvider {
   generateEmbeddings(params: {
     model: string;
     inputs: string[];
+    dimensions?: number;
   }): Promise<number[][]>;
 
   /**
@@ -84,8 +85,8 @@ export interface AIConfig {
 
 export function getAIConfig(): AIConfig {
   return {
-    reviewModel: process.env.AI_REVIEW_MODEL || "google/gemini-2.5-flash",
-    chatModel: process.env.AI_CHAT_MODEL || "google/gemini-2.5-flash",
+    reviewModel: process.env.AI_REVIEW_MODEL || "openrouter/free",
+    chatModel: process.env.AI_CHAT_MODEL || "openrouter/free",
     embeddingModel: process.env.AI_EMBEDDING_MODEL || "openai/text-embedding-3-small",
     embeddingDimensions: parseInt(process.env.AI_EMBEDDING_DIMENSIONS || "1536", 10),
     promptVersion: process.env.PROMPT_VERSION || "v1",

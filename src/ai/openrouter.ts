@@ -160,14 +160,20 @@ export class OpenRouterProvider implements AIProvider {
   async generateEmbeddings(params: {
     model: string;
     inputs: string[];
+    dimensions?: number;
   }): Promise<number[][]> {
+    const body: Record<string, unknown> = {
+      model: params.model,
+      input: params.inputs,
+    };
+    if (params.dimensions) {
+      body.dimensions = params.dimensions;
+    }
+
     const response = await fetch(`${OPENROUTER_BASE_URL}/embeddings`, {
       method: "POST",
       headers: this.headers,
-      body: JSON.stringify({
-        model: params.model,
-        input: params.inputs,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {

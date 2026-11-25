@@ -9,7 +9,7 @@ describe("EmbeddingService Unit Tests", () => {
     vi.clearAllMocks();
   });
 
-  it("generates 1536-dimensional embeddings using openai/text-embedding-3-small", async () => {
+  it("generates 1536-dimensional embeddings passing model and dimensions", async () => {
     const mockProvider: AIProvider = {
       generateText: vi.fn(),
       generateStructured: vi.fn(),
@@ -27,6 +27,32 @@ describe("EmbeddingService Unit Tests", () => {
     expect(mockProvider.generateEmbeddings).toHaveBeenCalledWith({
       model: EMBEDDING_MODEL,
       inputs,
+      dimensions: EMBEDDING_DIMENSIONS,
+    });
+  });
+
+  it("supports configurable model and expected dimensions option", async () => {
+    const customDim = 1024;
+    const dummy1024 = new Array(customDim).fill(0.01);
+    const mockProvider: AIProvider = {
+      generateText: vi.fn(),
+      generateStructured: vi.fn(),
+      streamText: vi.fn(),
+      generateEmbeddings: vi.fn().mockResolvedValue([dummy1024]),
+    };
+
+    const results = await EmbeddingService.generateEmbeddings(["Custom test"], {
+      provider: mockProvider,
+      model: "nvidia/nemotron-3.5-embed-1b:free",
+      expectedDimensions: customDim,
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toHaveLength(customDim);
+    expect(mockProvider.generateEmbeddings).toHaveBeenCalledWith({
+      model: "nvidia/nemotron-3.5-embed-1b:free",
+      inputs: ["Custom test"],
+      dimensions: customDim,
     });
   });
 
@@ -74,7 +100,7 @@ describe("EmbeddingService Unit Tests", () => {
     expect(callCount).toBe(2);
   });
 
-  it("throws clear error when vector dimensions do not match 1536", async () => {
+  it("throws clear error when vector dimensions do not match expected dimensions", async () => {
     const invalidVector = new Array(768).fill(0.1); // Wrong dimension
     const mockProvider: AIProvider = {
       generateText: vi.fn(),
@@ -86,5 +112,21 @@ describe("EmbeddingService Unit Tests", () => {
     await expect(
       EmbeddingService.generateEmbeddings(["Input text"], { provider: mockProvider })
     ).rejects.toThrow(/expected 1536 dimensions, got 768/i);
+  });
+
+  it("returns empty array when given empty inputs without calling provider", async () => {
+    const mockProvider: AIProvider = {
+      generateText: vi.fn(),
+      generateStructured: vi.fn(),
+      streamText: vi.fn(),
+      generateEmbeddings: vi.fn(),
+    };
+
+    const results = await EmbeddingService.generateEmbeddings([], {
+      provider: mockProvider,
+    });
+
+    expect(results).toEqual([]);
+    expect(mockProvider.generateEmbeddings).not.toHaveBeenCalled();
   });
 });

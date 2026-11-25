@@ -34,6 +34,7 @@ vi.mock("@/lib/db", () => ({
 const dummyVector = new Array(1536).fill(0.01);
 vi.mock("@/modules/embeddings", () => ({
   EMBEDDING_MODEL: "openai/text-embedding-3-small",
+  EMBEDDING_DIMENSIONS: 1536,
   EmbeddingService: {
     generateEmbeddings: vi.fn(),
   },
