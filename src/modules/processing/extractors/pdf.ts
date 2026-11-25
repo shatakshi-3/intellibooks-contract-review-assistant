@@ -1,3 +1,5 @@
+import "./pdf-polyfill";
+import { setupPdfEnvironment } from "./pdf-polyfill";
 import type { DocumentExtractor, ExtractionResult, ExtractedPage, ExtractedSection } from "./types";
 import { logger } from "@/lib/logger";
 
@@ -7,11 +9,31 @@ export class PDFExtractor implements DocumentExtractor {
       throw new Error("Cannot extract text from empty PDF buffer");
     }
 
+    // Ensure DOMMatrix, ImageData, Path2D, and virtual canvas environment are initialized
+    setupPdfEnvironment();
+
     const { PDFParse } = await import("pdf-parse");
-    let parser: InstanceType<typeof PDFParse> | null = null;
+
+    // Attempt to load CanvasFactory from worker integration if available
+    let canvasFactory: unknown = undefined;
+    try {
+      const worker = await import("pdf-parse/worker");
+      if (worker?.CanvasFactory) {
+        canvasFactory = new worker.CanvasFactory();
+      }
+    } catch {
+      // Fallback: PDFParse will use default internal worker/canvas handling
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let parser: any = null;
 
     try {
-      parser = new PDFParse({ data: buffer });
+      parser = new PDFParse({
+        data: buffer,
+        ...(canvasFactory ? { canvasFactory } : {}),
+      });
+
       const textResult = await parser.getText();
       const info = await parser.getInfo().catch(() => null);
 
@@ -24,7 +46,7 @@ export class PDFExtractor implements DocumentExtractor {
       for (let i = 0; i < textResult.pages.length; i++) {
         const pageItem = textResult.pages[i];
         const pageNum = pageItem.num || i + 1;
-        const pageText = pageItem.text.trim();
+        const pageText = (pageItem.text || "").trim();
 
         const startOffset = currentOffset;
         const endOffset = startOffset + pageText.length;
@@ -90,11 +112,21 @@ export class PDFExtractor implements DocumentExtractor {
       };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      if (msg.includes("Invalid PDF structure") || msg.includes("FormatError")) {
-        throw new Error(`Corrupted or malformed PDF: ${msg}`);
-      }
-      if (msg.includes("password") || msg.includes("PasswordException")) {
+      const errObj = error as Record<string, unknown> | null;
+      const isPassword =
+        msg.toLowerCase().includes("password") ||
+        errObj?.name === "PasswordException";
+
+      if (isPassword) {
         throw new Error("Encrypted or password-protected PDFs are not supported");
+      }
+      if (
+        msg.includes("Invalid PDF structure") ||
+        msg.includes("FormatError") ||
+        msg.includes("corrupted") ||
+        errObj?.name === "FormatError"
+      ) {
+        throw new Error(`Corrupted or malformed PDF: ${msg}`);
       }
       throw error;
     } finally {
