@@ -1,11 +1,12 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-// Define public routes that do not require authentication
+// Define public routes that do not require authentication at proxy level
 const isPublicRoute = createRouteMatcher([
   "/",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",
+  "/api/upload(.*)",
   "/.well-known/workflow(.*)",
 ]);
 

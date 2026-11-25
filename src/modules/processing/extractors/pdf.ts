@@ -1,4 +1,3 @@
-import { PDFParse } from "pdf-parse";
 import type { DocumentExtractor, ExtractionResult, ExtractedPage, ExtractedSection } from "./types";
 import { logger } from "@/lib/logger";
 
@@ -8,6 +7,7 @@ export class PDFExtractor implements DocumentExtractor {
       throw new Error("Cannot extract text from empty PDF buffer");
     }
 
+    const { PDFParse } = await import("pdf-parse");
     let parser: InstanceType<typeof PDFParse> | null = null;
 
     try {
