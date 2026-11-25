@@ -4,18 +4,12 @@ import { auth } from "@clerk/nextjs/server";
 import { isDemoMode } from "@/demo/config";
 
 export default async function HomePage() {
-  const demoActive = isDemoMode();
   let userId: string | null = null;
-
-  if (demoActive) {
-    userId = "demo_user";
-  } else {
-    try {
-      const authResult = await auth();
-      userId = authResult.userId;
-    } catch {
-      userId = null;
-    }
+  try {
+    const authResult = await auth();
+    userId = authResult.userId;
+  } catch {
+    userId = null;
   }
 
   return (

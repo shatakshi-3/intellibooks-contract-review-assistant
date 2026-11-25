@@ -47,8 +47,8 @@ export async function requireAuth(): Promise<{
     const clerkUser = await currentUser();
     if (clerkUser) {
       const email =
-        clerkUser.emailAddresses?.[0]?.emailAddress ?? `${clerkId}@clerk.user`;
-      const name = `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim() || null;
+        clerkUser.emailAddresses?.[0]?.emailAddress ?? `${clerkUser.username ?? clerkId}@clerk.user`;
+      const name = `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim() || clerkUser.username || null;
 
       const [newUser] = await db
         .insert(users)
