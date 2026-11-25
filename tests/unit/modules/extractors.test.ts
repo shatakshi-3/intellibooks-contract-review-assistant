@@ -175,6 +175,208 @@ describe("Document Extractors Unit & Integration Tests", () => {
       expect(f32.length).toBe(16);
       expect(f32[0]).toBe(2);
     });
+
+    it("verifies mathematical correctness of constructor variants and CSS string parsing", () => {
+      // 1. 6-element array constructor (2D)
+      const m2d = new DOMMatrixPolyfill([2, 0, 0, 3, 40, 50]);
+      expect(m2d.is2D).toBe(true);
+      expect(m2d.a).toBe(2);
+      expect(m2d.d).toBe(3);
+      expect(m2d.e).toBe(40);
+      expect(m2d.f).toBe(50);
+
+      // 2. 16-element array constructor (3D)
+      const m3d = new DOMMatrixPolyfill([
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        10, 20, 30, 1,
+      ]);
+      expect(m3d.is2D).toBe(false);
+      expect(m3d.m41).toBe(10);
+      expect(m3d.m42).toBe(20);
+      expect(m3d.m43).toBe(30);
+
+      // 3. Object with { a, b, c, d, e, f }
+      const fromObj = new DOMMatrixPolyfill({ a: 1.5, b: 0, c: 0, d: 2.5, e: 100, f: 200 });
+      expect(fromObj.a).toBe(1.5);
+      expect(fromObj.d).toBe(2.5);
+      expect(fromObj.e).toBe(100);
+      expect(fromObj.f).toBe(200);
+
+      // 4. CSS transform string parsing: matrix(a, b, c, d, e, f)
+      const fromCss = new DOMMatrixPolyfill("matrix(2, 0, 0, 4, 15, 25)");
+      expect(fromCss.is2D).toBe(true);
+      expect(fromCss.a).toBe(2);
+      expect(fromCss.d).toBe(4);
+      expect(fromCss.e).toBe(15);
+      expect(fromCss.f).toBe(25);
+
+      // 5. CSS transform string parsing: matrix3d(...)
+      const fromCss3d = new DOMMatrixPolyfill(
+        "matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 5, 10, 15, 1)"
+      );
+      expect(fromCss3d.is2D).toBe(false);
+      expect(fromCss3d.m41).toBe(5);
+      expect(fromCss3d.m42).toBe(10);
+      expect(fromCss3d.m43).toBe(15);
+
+      // 6. Static methods
+      const staticFrom = DOMMatrixPolyfill.fromMatrix(m2d);
+      expect(staticFrom.a).toBe(2);
+      expect(staticFrom.is2D).toBe(true);
+
+      const f64 = m2d.toFloat64Array();
+      expect(f64.length).toBe(16);
+      expect(f64[0]).toBe(2);
+    });
+
+    it("verifies mathematical correctness of matrix multiplication and non-commutativity", () => {
+      // Translation matrix T: translate(10, 0)
+      const T = new DOMMatrixPolyfill().translate(10, 0);
+      // Scale matrix S: scale(2, 1)
+      const S = new DOMMatrixPolyfill().scale(2, 1);
+
+      // T * S: translate first, then scale
+      const TS = T.multiply(S);
+      // S * T: scale first, then translate
+      const ST = S.multiply(T);
+
+      // In affine transformations, matrix multiplication is non-commutative
+      expect(TS.e).not.toBe(ST.e);
+      expect(TS.e).toBe(10);
+      expect(ST.e).toBe(20);
+
+      // preMultiplySelf matches other.multiply(this)
+      const pre = new DOMMatrixPolyfill(S).preMultiplySelf(T);
+      expect(pre.e).toBe(TS.e);
+      expect(pre.a).toBe(TS.a);
+    });
+
+    it("verifies mathematical correctness of 2D and 3D matrix inversion", () => {
+      // Arbitrary 2D affine matrix with shear
+      const M2 = new DOMMatrixPolyfill([2, 1, 0.5, 3, 10, 20]);
+      const inv2 = M2.inverse();
+      const roundTrip2 = M2.multiply(inv2);
+
+      expect(roundTrip2.a).toBeCloseTo(1, 5);
+      expect(roundTrip2.b).toBeCloseTo(0, 5);
+      expect(roundTrip2.c).toBeCloseTo(0, 5);
+      expect(roundTrip2.d).toBeCloseTo(1, 5);
+      expect(roundTrip2.e).toBeCloseTo(0, 5);
+      expect(roundTrip2.f).toBeCloseTo(0, 5);
+
+      // 3D transformation matrix
+      const M3 = new DOMMatrixPolyfill([
+        2, 0, 0, 0,
+        0, 3, 0, 0,
+        0, 0, 4, 0,
+        10, 20, 30, 1,
+      ]);
+      expect(M3.is2D).toBe(false);
+      const inv3 = M3.inverse();
+      const roundTrip3 = M3.multiply(inv3);
+
+      expect(roundTrip3.m11).toBeCloseTo(1, 5);
+      expect(roundTrip3.m22).toBeCloseTo(1, 5);
+      expect(roundTrip3.m33).toBeCloseTo(1, 5);
+      expect(roundTrip3.m44).toBeCloseTo(1, 5);
+      expect(roundTrip3.m41).toBeCloseTo(0, 5);
+      expect(roundTrip3.m42).toBeCloseTo(0, 5);
+      expect(roundTrip3.m43).toBeCloseTo(0, 5);
+    });
+
+    it("verifies singular non-invertible matrices set components to NaN per W3C specification", () => {
+      // 2D matrix with determinant 0 (rank deficient)
+      const singular2d = new DOMMatrixPolyfill([0, 0, 0, 0, 10, 20]);
+      const inv2d = singular2d.inverse();
+      expect(Number.isNaN(inv2d.a)).toBe(true);
+      expect(Number.isNaN(inv2d.d)).toBe(true);
+      expect(inv2d.is2D).toBe(false);
+
+      // 3D matrix with determinant 0
+      const singular3d = new DOMMatrixPolyfill([
+        0, 0, 0, 0,
+        0, 0, 0, 0,
+        0, 0, 0, 0,
+        0, 0, 0, 0,
+      ]);
+      const inv3d = singular3d.inverse();
+      expect(Number.isNaN(inv3d.m11)).toBe(true);
+      expect(inv3d.is2D).toBe(false);
+    });
+
+    it("verifies transformPoint with 2D, 3D, and projective w components", () => {
+      const M = new DOMMatrixPolyfill().translate(5, 10).scale(2, 3);
+      // 2D point (default z=0, w=1)
+      const p2 = M.transformPoint({ x: 3, y: 4 });
+      expect(p2.x).toBe(3 * 2 + 5);
+      expect(p2.y).toBe(4 * 3 + 10);
+      expect(p2.z).toBe(0);
+      expect(p2.w).toBe(1);
+
+      // 3D point with z and w
+      const M3 = new DOMMatrixPolyfill([
+        2, 0, 0, 0,
+        0, 3, 0, 0,
+        0, 0, 4, 0,
+        1, 2, 3, 1,
+      ]);
+      const p3 = M3.transformPoint({ x: 2, y: 2, z: 2, w: 1 });
+      expect(p3.x).toBe(2 * 2 + 1);
+      expect(p3.y).toBe(2 * 3 + 2);
+      expect(p3.z).toBe(2 * 4 + 3);
+      expect(p3.w).toBe(1);
+    });
+
+    it("verifies 2D/3D state transitions", () => {
+      const m = new DOMMatrixPolyfill();
+      expect(m.is2D).toBe(true);
+
+      // 2D translation preserves is2D
+      m.translateSelf(10, 20);
+      expect(m.is2D).toBe(true);
+
+      // 3D translation sets is2D to false
+      m.translateSelf(0, 0, 5);
+      expect(m.is2D).toBe(false);
+    });
+  });
+
+  describe("Concurrent Workflow Execution Safety", () => {
+    it("handles multiple concurrent PDF extractions without cross-task interference", async () => {
+      const extractor = new PDFExtractor();
+
+      const pdf1 = createValidPdfBuffer(
+        "Section 1: Contract Alpha for Exclusive Intellectual Property Rights and Patents"
+      );
+      const pdf2 = createValidPdfBuffer(
+        "Section 1: Contract Beta for Mutual Master Service Level Agreements and Penalties"
+      );
+      const pdf3 = createValidPdfBuffer(
+        "Section 1: Contract Gamma for Enterprise Software License and Support Clauses"
+      );
+
+      // Run 3 extractions concurrently in Promise.all
+      const [res1, res2, res3] = await Promise.all([
+        extractor.extract(pdf1),
+        extractor.extract(pdf2),
+        extractor.extract(pdf3),
+      ]);
+
+      expect(res1.fullText).toContain("Contract Alpha");
+      expect(res1.fullText).not.toContain("Contract Beta");
+
+      expect(res2.fullText).toContain("Contract Beta");
+      expect(res2.fullText).not.toContain("Contract Gamma");
+
+      expect(res3.fullText).toContain("Contract Gamma");
+      expect(res3.fullText).not.toContain("Contract Alpha");
+
+      expect(res1.pageCount).toBe(1);
+      expect(res2.pageCount).toBe(1);
+      expect(res3.pageCount).toBe(1);
+    });
   });
 
   describe("DOCX Extractor", () => {

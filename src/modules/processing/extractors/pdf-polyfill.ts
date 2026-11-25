@@ -3,12 +3,12 @@
  *
  * In serverless environments (e.g. AWS Lambda / Vercel Serverless Functions):
  * - Native Node C++ binaries like `@napi-rs/canvas` fail to load due to missing shared libraries (cairo, freetype, etc.) or cross-platform packaging issues.
- * - `pdfjs-dist` (used by `pdf-parse` v2) unconditionally expects W3C Geometry APIs (`DOMMatrix`, `Path2D`, `ImageData`) on `globalThis` when parsing documents and calculating text layout transforms.
+ * - `pdfjs-dist` (used by `pdf-parse` v2) unconditionally expects W3C Geometry APIs (`DOMMatrix`, `Path2D`, `ImageData`, `DOMPoint`) on `globalThis` when parsing documents and calculating text layout transforms.
  * - When `@napi-rs/canvas` fails to load, `pdf-parse` fails to polyfill `DOMMatrix`, causing `ReferenceError: DOMMatrix is not defined`.
  *
  * This module provides a complete, spec-compliant pure-TypeScript implementation of `DOMMatrix`,
- * `ImageData`, `Path2D`, and virtualizes `@napi-rs/canvas` so that text extraction never depends
- * on native OS binaries or browser APIs.
+ * `ImageData`, `Path2D`, `DOMPoint`, and `CanvasFactoryPolyfill` so that text extraction never depends
+ * on native OS binaries, browser APIs, or fragile module-loader monkey-patching.
  */
 
 export class DOMMatrixPolyfill {
@@ -65,9 +65,9 @@ export class DOMMatrixPolyfill {
     if (!init) return;
 
     if (typeof init === "string") {
-      const match = init.match(/matrix\(([^)]+)\)/);
-      if (match) {
-        const parts = match[1].split(/[\s,]+/).map(Number);
+      const match2d = init.match(/matrix\(([^)]+)\)/);
+      if (match2d) {
+        const parts = match2d[1].split(/[\s,]+/).map(Number);
         if (parts.length === 6) {
           this.m11 = parts[0];
           this.m12 = parts[1];
@@ -76,6 +76,18 @@ export class DOMMatrixPolyfill {
           this.m41 = parts[4];
           this.m42 = parts[5];
           this.is2D = true;
+          return;
+        }
+      }
+      const match3d = init.match(/matrix3d\(([^)]+)\)/);
+      if (match3d) {
+        const parts = match3d[1].split(/[\s,]+/).map(Number);
+        if (parts.length === 16) {
+          this.m11 = parts[0];  this.m12 = parts[1];  this.m13 = parts[2];  this.m14 = parts[3];
+          this.m21 = parts[4];  this.m22 = parts[5];  this.m23 = parts[6];  this.m24 = parts[7];
+          this.m31 = parts[8];  this.m32 = parts[9];  this.m33 = parts[10]; this.m34 = parts[11];
+          this.m41 = parts[12]; this.m42 = parts[13]; this.m43 = parts[14]; this.m44 = parts[15];
+          this.is2D = false;
           return;
         }
       }
@@ -312,8 +324,12 @@ export class DOMMatrixPolyfill {
   invertSelf(): this {
     if (this.is2D) {
       const det = this.a * this.d - this.b * this.c;
-      if (!det) {
-        this.m11 = this.m12 = this.m21 = this.m22 = this.m41 = this.m42 = Number.NaN;
+      if (!det || Number.isNaN(det)) {
+        this.m11 = this.m12 = this.m13 = this.m14 = Number.NaN;
+        this.m21 = this.m22 = this.m23 = this.m24 = Number.NaN;
+        this.m31 = this.m32 = this.m33 = this.m34 = Number.NaN;
+        this.m41 = this.m42 = this.m43 = this.m44 = Number.NaN;
+        this.is2D = false;
         return this;
       }
       const invDet = 1 / det;
@@ -331,6 +347,55 @@ export class DOMMatrixPolyfill {
       this.f = f;
       return this;
     }
+
+    // 3D 4x4 matrix inversion
+    const m = [
+      this.m11, this.m12, this.m13, this.m14,
+      this.m21, this.m22, this.m23, this.m24,
+      this.m31, this.m32, this.m33, this.m34,
+      this.m41, this.m42, this.m43, this.m44,
+    ];
+
+    const inv = new Array(16);
+    inv[0] = m[5] * m[10] * m[15] - m[5] * m[11] * m[14] - m[9] * m[6] * m[15] + m[9] * m[7] * m[14] + m[13] * m[6] * m[11] - m[13] * m[7] * m[10];
+    inv[4] = -m[4] * m[10] * m[15] + m[4] * m[11] * m[14] + m[8] * m[6] * m[15] - m[8] * m[7] * m[14] - m[12] * m[6] * m[11] + m[12] * m[7] * m[10];
+    inv[8] = m[4] * m[9] * m[15] - m[4] * m[11] * m[13] - m[8] * m[5] * m[15] + m[8] * m[7] * m[13] + m[12] * m[5] * m[11] - m[12] * m[7] * m[9];
+    inv[12] = -m[4] * m[9] * m[14] + m[4] * m[10] * m[13] + m[8] * m[5] * m[14] - m[8] * m[6] * m[13] - m[12] * m[5] * m[10] + m[12] * m[6] * m[9];
+
+    const det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
+    if (!det || Number.isNaN(det)) {
+      this.m11 = this.m12 = this.m13 = this.m14 = Number.NaN;
+      this.m21 = this.m22 = this.m23 = this.m24 = Number.NaN;
+      this.m31 = this.m32 = this.m33 = this.m34 = Number.NaN;
+      this.m41 = this.m42 = this.m43 = this.m44 = Number.NaN;
+      this.is2D = false;
+      return this;
+    }
+
+    inv[1] = -m[1] * m[10] * m[15] + m[1] * m[11] * m[14] + m[9] * m[2] * m[15] - m[9] * m[3] * m[14] - m[13] * m[2] * m[11] + m[13] * m[3] * m[10];
+    inv[5] = m[0] * m[10] * m[15] - m[0] * m[11] * m[14] - m[8] * m[2] * m[15] + m[8] * m[3] * m[14] + m[12] * m[2] * m[11] - m[12] * m[3] * m[10];
+    inv[9] = -m[0] * m[9] * m[15] + m[0] * m[11] * m[13] + m[8] * m[1] * m[15] - m[8] * m[3] * m[13] - m[12] * m[1] * m[11] + m[12] * m[3] * m[9];
+    inv[13] = m[0] * m[9] * m[14] - m[0] * m[10] * m[13] - m[8] * m[1] * m[14] + m[8] * m[2] * m[13] + m[12] * m[1] * m[10] - m[12] * m[2] * m[9];
+
+    inv[2] = m[1] * m[6] * m[15] - m[1] * m[7] * m[14] - m[5] * m[2] * m[15] + m[5] * m[3] * m[14] + m[13] * m[2] * m[7] - m[13] * m[3] * m[6];
+    inv[6] = -m[0] * m[6] * m[15] + m[0] * m[7] * m[14] + m[4] * m[2] * m[15] - m[4] * m[3] * m[14] - m[12] * m[2] * m[7] + m[12] * m[3] * m[6];
+    inv[10] = m[0] * m[5] * m[15] - m[0] * m[7] * m[13] - m[4] * m[1] * m[15] + m[4] * m[3] * m[13] + m[12] * m[1] * m[7] - m[12] * m[3] * m[5];
+    inv[14] = -m[0] * m[5] * m[14] + m[0] * m[6] * m[13] + m[4] * m[1] * m[14] - m[4] * m[2] * m[13] - m[12] * m[1] * m[6] + m[12] * m[2] * m[5];
+
+    inv[3] = -m[1] * m[6] * m[11] + m[1] * m[7] * m[10] + m[5] * m[2] * m[11] - m[5] * m[3] * m[10] - m[9] * m[2] * m[7] + m[9] * m[3] * m[6];
+    inv[7] = m[0] * m[6] * m[11] - m[0] * m[7] * m[10] - m[4] * m[2] * m[11] + m[4] * m[3] * m[10] + m[8] * m[2] * m[7] - m[8] * m[3] * m[6];
+    inv[11] = -m[0] * m[5] * m[11] + m[0] * m[7] * m[9] + m[4] * m[1] * m[11] - m[4] * m[3] * m[9] - m[8] * m[1] * m[7] + m[8] * m[3] * m[5];
+    inv[15] = m[0] * m[5] * m[10] - m[0] * m[6] * m[9] - m[4] * m[1] * m[10] + m[4] * m[2] * m[9] + m[8] * m[1] * m[6] - m[8] * m[2] * m[5];
+
+    const invDet = 1 / det;
+    for (let i = 0; i < 16; i++) {
+      inv[i] *= invDet;
+    }
+
+    this.m11 = inv[0];  this.m12 = inv[1];  this.m13 = inv[2];  this.m14 = inv[3];
+    this.m21 = inv[4];  this.m22 = inv[5];  this.m23 = inv[6];  this.m24 = inv[7];
+    this.m31 = inv[8];  this.m32 = inv[9];  this.m33 = inv[10]; this.m34 = inv[11];
+    this.m41 = inv[12]; this.m42 = inv[13]; this.m43 = inv[14]; this.m44 = inv[15];
     return this;
   }
 
@@ -439,20 +504,54 @@ export class DOMPointPolyfill {
   }
 }
 
+/**
+ * Pure TypeScript CanvasFactory fallback compatible with PDF.js and pdf-parse.
+ * Completely eliminates the need to import `pdf-parse/worker` which requires native `@napi-rs/canvas`.
+ */
+export class CanvasFactoryPolyfill {
+  create(width: number, height: number) {
+    if (width <= 0 || height <= 0) {
+      throw new Error("Invalid canvas size");
+    }
+    return {
+      canvas: {
+        width,
+        height,
+        getContext: () => null,
+        toBuffer: () => Buffer.alloc(0),
+        toDataURL: () => "",
+      },
+      context: null,
+    };
+  }
+
+  reset(canvasAndContext: { canvas?: { width: number; height: number } | null }, width: number, height: number) {
+    if (!canvasAndContext?.canvas) {
+      throw new Error("Canvas is not specified");
+    }
+    if (width <= 0 || height <= 0) {
+      throw new Error("Invalid canvas size");
+    }
+    canvasAndContext.canvas.width = width;
+    canvasAndContext.canvas.height = height;
+  }
+
+  destroy(canvasAndContext: { canvas?: unknown; context?: unknown }) {
+    canvasAndContext.canvas = null;
+    canvasAndContext.context = null;
+  }
+}
+
 let isPolyfilled = false;
 
 /**
  * Initializes the global runtime environment for headless serverless PDF extraction.
- *
- * 1. Polyfills `DOMMatrix`, `DOMPoint`, `ImageData`, and `Path2D` on `globalThis`.
- * 2. In Node.js runtimes, intercepts `@napi-rs/canvas` require calls to provide a
- *    lightweight pure-JS mock canvas. This prevents `@napi-rs/canvas` from attempting
- *    to dynamically link native OS binaries that fail on Vercel AWS Lambda.
+ * Polyfills `DOMMatrix`, `DOMMatrixReadOnly`, `DOMPoint`, `DOMPointReadOnly`,
+ * `ImageData`, and `Path2D` on `globalThis` if not present.
  */
 export function setupPdfEnvironment(): void {
   if (isPolyfilled) return;
 
-  // 1. Install global DOM geometry polyfills
   const g = globalThis as unknown as Record<string, unknown>;
 
   if (!g.DOMMatrix) {
@@ -472,54 +571,6 @@ export function setupPdfEnvironment(): void {
   }
   if (!g.Path2D) {
     g.Path2D = Path2DPolyfill;
-  }
-
-  // 2. Virtualize @napi-rs/canvas in Node.js module loader
-  if (typeof process !== "undefined" && process.versions?.node) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Module = require("module");
-      const MOCK_MODULE_ID = "__mock_napi_rs_canvas__";
-
-      const mockCanvasModule = {
-        createCanvas: (width: number, height: number) => ({
-          width,
-          height,
-          getContext: () => null,
-          toBuffer: () => Buffer.alloc(0),
-        }),
-        DOMMatrix: g.DOMMatrix,
-        ImageData: g.ImageData,
-        Path2D: g.Path2D,
-      };
-
-      if (!Module._resolveFilenameOriginal) {
-        Module._resolveFilenameOriginal = Module._resolveFilename;
-        Module._resolveFilename = function (
-          request: string,
-          parent: unknown,
-          isMain: boolean,
-          options: unknown
-        ) {
-          if (request === "@napi-rs/canvas") {
-            return MOCK_MODULE_ID;
-          }
-          return Module._resolveFilenameOriginal.call(this, request, parent, isMain, options);
-        };
-      }
-
-      const requireFunc = typeof require !== "undefined" ? require : null;
-      if (requireFunc?.cache) {
-        (requireFunc.cache as Record<string, unknown>)[MOCK_MODULE_ID] = {
-          id: MOCK_MODULE_ID,
-          filename: MOCK_MODULE_ID,
-          loaded: true,
-          exports: mockCanvasModule,
-        };
-      }
-    } catch {
-      // Ignore in non-Node environments (e.g. Edge runtime)
-    }
   }
 
   isPolyfilled = true;

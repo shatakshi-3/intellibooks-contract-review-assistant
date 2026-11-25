@@ -1,5 +1,5 @@
 import "./pdf-polyfill";
-import { setupPdfEnvironment } from "./pdf-polyfill";
+import { setupPdfEnvironment, CanvasFactoryPolyfill } from "./pdf-polyfill";
 import type { DocumentExtractor, ExtractionResult, ExtractedPage, ExtractedSection } from "./types";
 import { logger } from "@/lib/logger";
 
@@ -9,21 +9,10 @@ export class PDFExtractor implements DocumentExtractor {
       throw new Error("Cannot extract text from empty PDF buffer");
     }
 
-    // Ensure DOMMatrix, ImageData, Path2D, and virtual canvas environment are initialized
+    // Ensure DOMMatrix, ImageData, Path2D, and geometry environment are initialized
     setupPdfEnvironment();
 
     const { PDFParse } = await import("pdf-parse");
-
-    // Attempt to load CanvasFactory from worker integration if available
-    let canvasFactory: unknown = undefined;
-    try {
-      const worker = await import("pdf-parse/worker");
-      if (worker?.CanvasFactory) {
-        canvasFactory = new worker.CanvasFactory();
-      }
-    } catch {
-      // Fallback: PDFParse will use default internal worker/canvas handling
-    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let parser: any = null;
@@ -31,7 +20,7 @@ export class PDFExtractor implements DocumentExtractor {
     try {
       parser = new PDFParse({
         data: buffer,
-        ...(canvasFactory ? { canvasFactory } : {}),
+        CanvasFactory: CanvasFactoryPolyfill,
       });
 
       const textResult = await parser.getText();
