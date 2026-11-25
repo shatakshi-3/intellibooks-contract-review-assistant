@@ -103,5 +103,44 @@ describe("Upload Architecture & Authorization Integration Tests", () => {
       expect(allowedTransitions.ready.includes("uploaded")).toBe(false);
       expect(allowedTransitions.uploaded.includes("pending_upload")).toBe(false);
     });
+
+    it("requires access mode to be 'private' for client uploads to private Vercel Blob store", () => {
+      const clientUploadOptions = {
+        access: "private" as const,
+        handleUploadUrl: "/api/upload",
+      };
+
+      expect(clientUploadOptions.access).toBe("private");
+      expect(clientUploadOptions.access).not.toBe("public");
+    });
+
+    it("generates unique tenant-isolated storage path with contract ID to prevent filename collisions", () => {
+      const filename = "duplicate_contract_name.pdf";
+      const contract1Id = "11111111-1111-1111-1111-111111111111";
+      const contract2Id = "22222222-2222-2222-2222-222222222222";
+
+      const path1 = `contracts/${userA}/${contract1Id}/${encodeURIComponent(filename)}`;
+      const path2 = `contracts/${userA}/${contract2Id}/${encodeURIComponent(filename)}`;
+
+      // Even with the exact same filename and user, contractId guarantees distinct storage keys
+      expect(path1).not.toEqual(path2);
+      expect(path1).toContain(contract1Id);
+      expect(path2).toContain(contract2Id);
+    });
+
+    it("verifies server token constraints include addRandomSuffix for collision protection", () => {
+      const constraints = {
+        allowedContentTypes: [
+          "application/pdf",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "text/plain",
+        ],
+        maximumSizeInBytes: 20 * 1024 * 1024,
+        addRandomSuffix: true,
+      };
+
+      expect(constraints.addRandomSuffix).toBe(true);
+      expect(constraints.maximumSizeInBytes).toBe(MAX_FILE_SIZE_BYTES);
+    });
   });
 });

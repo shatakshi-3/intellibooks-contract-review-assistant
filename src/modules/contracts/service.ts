@@ -229,4 +229,41 @@ export class ContractsService {
         : null,
     };
   }
+
+  /**
+   * Mark contract upload as failed if client upload or processing initialization fails.
+   */
+  static async markUploadFailed(
+    contractId: string,
+    userId: string,
+    errorMessage?: string
+  ): Promise<Contract> {
+    const contract = await requireContractOwnership(contractId, userId);
+
+    // Only update if still in pending/uploading status to prevent overwriting active processing
+    if (contract.status === "pending_upload" || contract.status === "uploading") {
+      const [updated] = await db
+        .update(contracts)
+        .set({
+          status: "failed",
+          metadata: {
+            ...((contract.metadata as Record<string, unknown>) || {}),
+            uploadError: errorMessage || "Upload failed before completion",
+          },
+          updatedAt: new Date(),
+        })
+        .where(and(eq(contracts.id, contractId), eq(contracts.userId, userId)))
+        .returning();
+
+      logger.warn("Marked contract upload as failed", {
+        contractId,
+        userId,
+        error: errorMessage,
+      });
+
+      return updated;
+    }
+
+    return contract;
+  }
 }

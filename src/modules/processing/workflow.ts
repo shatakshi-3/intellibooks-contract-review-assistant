@@ -104,12 +104,8 @@ export class DocumentProcessingPipeline {
         if (!contract.blobUrl) {
           throw new Error("Contract record is missing blobUrl for storage retrieval");
         }
-        const response = await fetch(contract.blobUrl);
-        if (!response.ok) {
-          throw new Error(`Failed to download document from storage: ${response.status} ${response.statusText}`);
-        }
-        const arrayBuffer = await response.arrayBuffer();
-        fileBuffer = Buffer.from(arrayBuffer);
+        const { downloadBlobBuffer } = await import("@/lib/storage/blob");
+        fileBuffer = await downloadBlobBuffer(contract.blobUrl);
       }
 
       stages.downloading = {

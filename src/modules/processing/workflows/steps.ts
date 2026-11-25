@@ -106,12 +106,9 @@ export async function validateAndDownloadStep(input: {
     if (!contract.blobUrl) {
       throw new FatalError("Contract record is missing blobUrl for storage retrieval");
     }
-    const response = await fetch(contract.blobUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to download document from storage: ${response.status} ${response.statusText}`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    bufferBase64 = Buffer.from(arrayBuffer).toString("base64");
+    const { downloadBlobBuffer } = await import("@/lib/storage/blob");
+    const downloadedBuffer = await downloadBlobBuffer(contract.blobUrl);
+    bufferBase64 = downloadedBuffer.toString("base64");
   }
 
   return {

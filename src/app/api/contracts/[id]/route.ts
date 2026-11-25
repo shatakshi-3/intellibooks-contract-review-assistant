@@ -55,3 +55,40 @@ export async function DELETE(
     );
   }
 }
+
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { userId } = await requireAuth();
+    const resolvedParams = await params;
+
+    const parseResult = contractIdSchema.safeParse(resolvedParams);
+    if (!parseResult.success) {
+      return NextResponse.json({ error: "Invalid contract ID" }, { status: 400 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const { status, errorMessage } = body;
+
+    if (status === "failed") {
+      const contract = await ContractsService.markUploadFailed(
+        parseResult.data.id,
+        userId,
+        errorMessage
+      );
+      return NextResponse.json({ contract });
+    }
+
+    return NextResponse.json({ error: "Invalid status update payload" }, { status: 400 });
+  } catch (error) {
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.statusCode });
+    }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: 500 }
+    );
+  }
+}

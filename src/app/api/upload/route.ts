@@ -5,6 +5,9 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { ContractsService } from "@/modules/contracts";
 import { MAX_FILE_SIZE_BYTES, ALLOWED_MIME_TYPES } from "@/lib/validation/contracts";
 import { logger } from "@/lib/logger";
+import { start } from "workflow/api";
+import { HookConflictError } from "workflow/errors";
+import { contractProcessingWorkflow } from "@/modules/processing/workflows/contract-processing";
 
 export async function POST(request: Request): Promise<NextResponse> {
   const body = (await request.json()) as HandleUploadBody;
@@ -68,7 +71,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           pathname,
         });
 
-        // 4. Return authorized token payload with strict 20 MB cap and allowed types
+        // 4. Return authorized token payload with strict 20 MB cap, allowed types, and random suffix to prevent collisions
         return {
           allowedContentTypes: [
             "application/pdf",
@@ -76,6 +79,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             "text/plain",
           ],
           maximumSizeInBytes: MAX_FILE_SIZE_BYTES,
+          addRandomSuffix: true,
           tokenPayload: JSON.stringify({
             contractId,
             userId,
@@ -107,6 +111,29 @@ export async function POST(request: Request): Promise<NextResponse> {
           storageKey: blob.pathname,
           contentType,
         });
+
+        // Dispatch durable document processing workflow
+        const hookToken = `contract-processing:${contractId}`;
+        try {
+          await start(contractProcessingWorkflow, [{ contractId, userId }], {
+            experimental_hook: { token: hookToken },
+          });
+          logger.info("Triggered durable contract processing workflow from onUploadCompleted", {
+            contractId,
+            userId,
+          });
+        } catch (wfErr) {
+          if (HookConflictError.is(wfErr)) {
+            logger.info("Workflow already in progress for contract (idempotent hook conflict)", {
+              contractId,
+            });
+          } else {
+            logger.error("Failed to start workflow from onUploadCompleted", {
+              contractId,
+              error: wfErr instanceof Error ? wfErr.message : String(wfErr),
+            });
+          }
+        }
       },
     });
 

@@ -46,3 +46,24 @@ export async function getBlobMetadata(urlOrKey: string) {
     return null;
   }
 }
+
+/**
+ * Download a private blob buffer using authenticated storage credentials.
+ */
+export async function downloadBlobBuffer(blobUrl: string): Promise<Buffer> {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(blobUrl, { headers });
+  if (!response.ok) {
+    throw new Error(
+      `Failed to download document from private storage: ${response.status} ${response.statusText}`
+    );
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}

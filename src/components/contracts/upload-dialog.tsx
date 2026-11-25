@@ -84,6 +84,8 @@ export function UploadDialog({ isOpen, onClose, onUploadSuccess }: UploadDialogP
     setProgress(5);
     setStatusMessage("Creating contract record...");
 
+    let createdContractId: string | null = null;
+
     try {
       const ext = file.name.split(".").pop()?.toLowerCase() as "pdf" | "docx" | "txt";
       const contentType = file.type || (ext === "pdf" ? "application/pdf" : ext === "docx" ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "text/plain");
@@ -106,12 +108,16 @@ export function UploadDialog({ isOpen, onClose, onUploadSuccess }: UploadDialogP
       }
 
       const { contract } = await initRes.json();
+      createdContractId = contract.id;
       setProgress(20);
       setStatusMessage("Uploading directly to private Blob storage...");
 
-      // Step 2: Upload directly from browser to Vercel Blob store
-      await upload(file.name, file, {
-        access: "public", // Secured by private access in Vercel
+      // Unique tenant-scoped pathname (preserves original filename separately in database)
+      const uploadPathname = contract.storageKey || `contracts/${contract.userId || "user"}/${contract.id}/${encodeURIComponent(file.name)}`;
+
+      // Step 2: Upload directly from browser to private Vercel Blob store
+      await upload(uploadPathname, file, {
+        access: "private",
         handleUploadUrl: "/api/upload",
         clientPayload: JSON.stringify({
           contractId: contract.id,
@@ -152,7 +158,25 @@ export function UploadDialog({ isOpen, onClose, onUploadSuccess }: UploadDialogP
       setIsUploading(false);
       setProgress(0);
       setStatusMessage("");
-      setError(err instanceof Error ? err.message : "Failed to upload file. Please try again.");
+      const errorMsg = err instanceof Error ? err.message : "Failed to upload file. Please try again.";
+      setError(errorMsg);
+
+      // If contract record was created, mark it as failed instead of leaving it stuck in uploading
+      if (createdContractId) {
+        try {
+          await fetch(`/api/contracts/${createdContractId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: "failed",
+              errorMessage: errorMsg,
+            }),
+          });
+          onUploadSuccess(); // Refresh contract list so dashboard shows Failed state
+        } catch {
+          // Ignore secondary failure
+        }
+      }
     }
   }
 

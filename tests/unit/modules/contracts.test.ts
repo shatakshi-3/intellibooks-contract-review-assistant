@@ -227,4 +227,52 @@ describe("ContractsService Unit Tests", () => {
       expect(result.job?.currentStep).toBe("extract_text");
     });
   });
+
+  describe("markUploadFailed", () => {
+    it("transitions pending_upload contract to failed and persists uploadError in metadata", async () => {
+      const mockContract = {
+        id: contractId,
+        userId,
+        status: "pending_upload",
+        metadata: { contentType: "application/pdf" },
+      };
+      const mockFailed = {
+        ...mockContract,
+        status: "failed",
+        metadata: { contentType: "application/pdf", uploadError: "Vercel Blob PUT 400 Bad Request" },
+      };
+
+      vi.mocked(requireContractOwnership).mockResolvedValue(mockContract as any);
+      vi.mocked(db.update).mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([mockFailed]),
+          }),
+        }),
+      } as any);
+
+      const result = await ContractsService.markUploadFailed(
+        contractId,
+        userId,
+        "Vercel Blob PUT 400 Bad Request"
+      );
+
+      expect(result.status).toBe("failed");
+      expect((result.metadata as any).uploadError).toBe("Vercel Blob PUT 400 Bad Request");
+      expect(db.update).toHaveBeenCalled();
+    });
+
+    it("does not overwrite contracts that have already advanced to processing or ready", async () => {
+      const readyContract = {
+        id: contractId,
+        userId,
+        status: "ready",
+      };
+      vi.mocked(requireContractOwnership).mockResolvedValue(readyContract as any);
+
+      const result = await ContractsService.markUploadFailed(contractId, userId, "Delayed error");
+      expect(result.status).toBe("ready");
+      expect(db.update).not.toHaveBeenCalled();
+    });
+  });
 });
