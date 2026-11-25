@@ -28,6 +28,42 @@ describe("EmbeddingService Unit Tests", () => {
       model: EMBEDDING_MODEL,
       inputs,
       dimensions: EMBEDDING_DIMENSIONS,
+      inputType: undefined,
+    });
+  });
+
+  it("passes asymmetric inputType 'passage' for indexing and 'query' for search", async () => {
+    const mockProvider: AIProvider = {
+      generateText: vi.fn(),
+      generateStructured: vi.fn(),
+      streamText: vi.fn(),
+      generateEmbeddings: vi.fn().mockResolvedValue([dummy1536]),
+    };
+
+    // Test passage mode
+    await EmbeddingService.generateEmbeddings(["Document paragraph content"], {
+      provider: mockProvider,
+      inputType: "passage",
+    });
+
+    expect(mockProvider.generateEmbeddings).toHaveBeenLastCalledWith({
+      model: EMBEDDING_MODEL,
+      inputs: ["Document paragraph content"],
+      dimensions: EMBEDDING_DIMENSIONS,
+      inputType: "passage",
+    });
+
+    // Test query mode
+    await EmbeddingService.generateEmbeddings(["Search query clause"], {
+      provider: mockProvider,
+      inputType: "query",
+    });
+
+    expect(mockProvider.generateEmbeddings).toHaveBeenLastCalledWith({
+      model: EMBEDDING_MODEL,
+      inputs: ["Search query clause"],
+      dimensions: EMBEDDING_DIMENSIONS,
+      inputType: "query",
     });
   });
 

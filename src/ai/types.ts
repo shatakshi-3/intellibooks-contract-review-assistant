@@ -60,6 +60,7 @@ export interface AIProvider {
     model: string;
     inputs: string[];
     dimensions?: number;
+    inputType?: "passage" | "query";
   }): Promise<number[][]>;
 
   /**

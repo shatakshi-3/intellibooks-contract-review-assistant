@@ -161,6 +161,7 @@ export class OpenRouterProvider implements AIProvider {
     model: string;
     inputs: string[];
     dimensions?: number;
+    inputType?: "passage" | "query";
   }): Promise<number[][]> {
     const body: Record<string, unknown> = {
       model: params.model,
@@ -168,6 +169,9 @@ export class OpenRouterProvider implements AIProvider {
     };
     if (params.dimensions) {
       body.dimensions = params.dimensions;
+    }
+    if (params.inputType) {
+      body.input_type = params.inputType;
     }
 
     const response = await fetch(`${OPENROUTER_BASE_URL}/embeddings`, {

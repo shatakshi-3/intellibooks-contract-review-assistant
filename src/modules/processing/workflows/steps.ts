@@ -342,7 +342,12 @@ export async function generateAndSaveEmbeddingsStep(input: {
   const { userId, chunks } = input;
   const chunkContents = chunks.map((c) => c.content);
 
-  const embeddings = await EmbeddingService.generateEmbeddings(chunkContents, { batchSize: 20 });
+  const embeddings = await EmbeddingService.generateEmbeddings(chunkContents, {
+    batchSize: 20,
+    model: EMBEDDING_MODEL,
+    expectedDimensions: EMBEDDING_DIMENSIONS,
+    inputType: "passage",
+  });
 
   if (embeddings.length !== chunks.length) {
     throw new Error(`Embedding count mismatch: expected ${chunks.length}, got ${embeddings.length}`);
@@ -359,7 +364,10 @@ export async function generateAndSaveEmbeddingsStep(input: {
 
     await db
       .update(documentChunks)
-      .set({ embedding })
+      .set({
+        embedding,
+        embeddingModel: EMBEDDING_MODEL,
+      })
       .where(and(eq(documentChunks.id, chunk.id), eq(documentChunks.userId, userId)));
   }
 

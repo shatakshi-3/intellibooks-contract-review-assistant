@@ -244,6 +244,7 @@ export class DocumentProcessingPipeline {
       const chunkContents = chunksData.map((c) => c.content);
       const embeddings = await EmbeddingService.generateEmbeddings(chunkContents, {
         batchSize: options?.batchSize,
+        inputType: "passage",
       });
 
       if (embeddings.length !== chunksData.length) {

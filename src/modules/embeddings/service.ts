@@ -6,11 +6,14 @@ export const EMBEDDING_DIMENSIONS = parseInt(process.env.AI_EMBEDDING_DIMENSIONS
 export const DEFAULT_BATCH_SIZE = 20;
 export const MAX_RETRIES = 3;
 
+export type EmbeddingInputType = "passage" | "query";
+
 export interface EmbeddingOptions {
   batchSize?: number;
   provider?: AIProvider;
   model?: string;
   expectedDimensions?: number;
+  inputType?: EmbeddingInputType;
 }
 
 export class EmbeddingService {
@@ -29,6 +32,7 @@ export class EmbeddingService {
     const batchSize = options?.batchSize ?? DEFAULT_BATCH_SIZE;
     const model = options?.model ?? EMBEDDING_MODEL;
     const expectedDimensions = options?.expectedDimensions ?? EMBEDDING_DIMENSIONS;
+    const inputType = options?.inputType;
 
     // 1. Sanitize & validate inputs
     const sanitized = texts.map((t, idx) => {
@@ -45,7 +49,13 @@ export class EmbeddingService {
     // 2. Process in controlled batches
     for (let i = 0; i < sanitized.length; i += batchSize) {
       const batch = sanitized.slice(i, i + batchSize);
-      const batchEmbeddings = await this.generateBatchWithRetry(provider, batch, model, expectedDimensions);
+      const batchEmbeddings = await this.generateBatchWithRetry(
+        provider,
+        batch,
+        model,
+        expectedDimensions,
+        inputType
+      );
 
       // 3. Strict dimension validation
       for (let j = 0; j < batchEmbeddings.length; j++) {
@@ -71,6 +81,7 @@ export class EmbeddingService {
     inputs: string[],
     model: string,
     expectedDimensions: number,
+    inputType?: EmbeddingInputType,
     maxRetries = MAX_RETRIES
   ): Promise<number[][]> {
     let attempt = 0;
@@ -82,6 +93,7 @@ export class EmbeddingService {
           model,
           inputs,
           dimensions: expectedDimensions,
+          inputType,
         });
       } catch (error) {
         attempt++;

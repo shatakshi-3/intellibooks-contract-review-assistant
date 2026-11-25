@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DocumentProcessingPipeline } from "@/modules/processing/workflow";
 import { RetrievalService } from "@/modules/retrieval/service";
+import { EMBEDDING_MODEL } from "@/modules/embeddings";
 import fs from "fs";
 import path from "path";
 
@@ -9,6 +10,7 @@ import path from "path";
 vi.mock("@/lib/db", () => ({
   db: {
     select: vi.fn(),
+    selectDistinct: vi.fn(),
     insert: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
@@ -215,6 +217,12 @@ describe("Document Processing Pipeline & Scoped Vector Retrieval", () => {
           similarity: 0.92,
         },
       ];
+
+      vi.mocked(db.selectDistinct).mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ embeddingModel: EMBEDDING_MODEL }]),
+        }),
+      } as any);
 
       vi.mocked(db.select).mockReturnValue({
         from: vi.fn().mockReturnValue({
