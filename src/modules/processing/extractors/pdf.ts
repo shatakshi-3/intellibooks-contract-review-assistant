@@ -1,5 +1,5 @@
 import "./pdf-polyfill";
-import { setupPdfEnvironment, CanvasFactoryPolyfill } from "./pdf-polyfill";
+import { setupPdfEnvironment } from "./pdf-polyfill";
 import type { DocumentExtractor, ExtractionResult, ExtractedPage, ExtractedSection } from "./types";
 import { logger } from "@/lib/logger";
 
@@ -12,30 +12,26 @@ export class PDFExtractor implements DocumentExtractor {
     // Ensure DOMMatrix, ImageData, Path2D, and geometry environment are initialized
     setupPdfEnvironment();
 
-    const { PDFParse } = await import("pdf-parse");
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let parser: any = null;
+    let doc: any = null;
 
     try {
-      parser = new PDFParse({
-        data: buffer,
-        CanvasFactory: CanvasFactoryPolyfill,
-      });
+      const { extractText, getDocumentProxy, getMeta } = await import("unpdf");
+      doc = await getDocumentProxy(new Uint8Array(buffer));
 
-      const textResult = await parser.getText();
-      const info = await parser.getInfo().catch(() => null);
+      const textResult = await extractText(doc, { mergePages: false });
+      const meta = await getMeta(doc).catch(() => null);
 
+      const pageTexts = Array.isArray(textResult.text) ? textResult.text : [textResult.text];
       const pages: ExtractedPage[] = [];
       const sections: ExtractedSection[] = [];
       let fullText = "";
       let currentOffset = 0;
 
       // Extract text page by page preserving boundaries and offsets
-      for (let i = 0; i < textResult.pages.length; i++) {
-        const pageItem = textResult.pages[i];
-        const pageNum = pageItem.num || i + 1;
-        const pageText = (pageItem.text || "").trim();
+      for (let i = 0; i < pageTexts.length; i++) {
+        const pageNum = i + 1;
+        const pageText = (pageTexts[i] || "").trim();
 
         const startOffset = currentOffset;
         const endOffset = startOffset + pageText.length;
@@ -96,7 +92,12 @@ export class PDFExtractor implements DocumentExtractor {
           charCount,
           wordCount,
           isScannedOrImageOnly: false,
-          customMetadata: info ? { title: info.info?.Title, author: info.info?.Author } : undefined,
+          customMetadata: meta?.info
+            ? {
+                title: (meta.info as unknown as Record<string, unknown>).Title,
+                author: (meta.info as unknown as Record<string, unknown>).Author,
+              }
+            : undefined,
         },
       };
     } catch (error) {
@@ -113,14 +114,15 @@ export class PDFExtractor implements DocumentExtractor {
         msg.includes("Invalid PDF structure") ||
         msg.includes("FormatError") ||
         msg.includes("corrupted") ||
-        errObj?.name === "FormatError"
+        errObj?.name === "FormatError" ||
+        errObj?.name === "InvalidPDFException"
       ) {
         throw new Error(`Corrupted or malformed PDF: ${msg}`);
       }
       throw error;
     } finally {
-      if (parser) {
-        await parser.destroy().catch(() => {});
+      if (doc) {
+        await doc.destroy?.().catch(() => {});
       }
     }
   }
